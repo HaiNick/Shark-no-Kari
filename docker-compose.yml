@@ -1,0 +1,36 @@
+services:
+  shark-no-kari:
+    build: .
+    container_name: shark-no-kari
+    restart: unless-stopped
+    environment:
+      - MCP_API_KEY=${MCP_API_KEY:-}
+      - HOST=0.0.0.0
+      - PORT=8000
+    expose:
+      - "8000"
+    # Shared memory needed for headless browsers
+    shm_size: "512mb"
+    networks:
+      - mcp-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: kari-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - mcp-net
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  mcp-net:

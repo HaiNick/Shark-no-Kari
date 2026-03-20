@@ -1,0 +1,9 @@
+# Caddy handles Let's Encrypt certificates automatically
+{$DOMAIN:kari.snowy-burbot.com} {
+    reverse_proxy shark-no-kari:8000
+
+    # Optional: restrict to Anthropic's MCP IP ranges
+    # See https://support.claude.com/en/articles/11503834
+    # @blocked not remote_ip <anthropic_ips>
+    # respond @blocked 403
+}

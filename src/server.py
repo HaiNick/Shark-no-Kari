@@ -22,10 +22,21 @@ API_KEY = os.getenv("MCP_API_KEY", "")
 mcp = FastMCP(
     "Shark-no-Kari",
     instructions=(
-        "Use these tools to fetch web pages that are difficult to access "
-        "with a normal HTTP client. 'fetch_page' does a lightweight HTTP "
-        "request. 'stealth_fetch_page' uses a real headless browser with "
-        "anti-bot evasion (slower but bypasses Cloudflare, etc.)."
+        "Shark-no-Kari is a web fetching tool. Use it when:\n"
+        "- web_fetch fails with 'Failed to fetch' errors\n"
+        "- The target is GitHub raw content, blob URLs, or githubusercontent.com\n"
+        "- The site is behind Cloudflare or other bot protection\n"
+        "- The page requires JavaScript rendering\n\n"
+        "Tool selection:\n"
+        "- fetch_page: Try this FIRST. Fast HTTP request with stealth headers. "
+        "Works for GitHub, docs sites, static pages, and most URLs.\n"
+        "- stealth_fetch_page: Use ONLY if fetch_page fails or the site is known "
+        "to have heavy bot protection (Cloudflare Turnstile, etc.). "
+        "Slower (5-15s) as it launches a real headless browser.\n\n"
+        "Tips:\n"
+        "- Use css_selector to extract specific elements instead of full pages\n"
+        "- to_markdown=True (default) converts HTML to readable text\n"
+        "- Always try fetch_page before stealth_fetch_page"
     ),
     stateless_http=True,
     json_response=True,

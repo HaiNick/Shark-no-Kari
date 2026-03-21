@@ -51,7 +51,7 @@ to the server's IPv4 address. Wait for DNS propagation.
 
 ```bash
 ssh root@<server-ip>
-curl -sSL https://raw.githubusercontent.com/<you>/shark-no-kari/main/scripts/setup-vps.sh | bash
+curl -sSL https://raw.githubusercontent.com/HaiNick/shark-no-kari/main/scripts/setup-vps.sh | bash
 ```
 
 Or run the commands from `scripts/setup-vps.sh` manually. This installs Docker and
@@ -63,7 +63,7 @@ creates the project directory at `/opt/shark-no-kari`.
 cd /opt/shark-no-kari
 
 # Clone the repo
-git clone https://github.com/<you>/shark-no-kari.git .
+git clone https://github.com/HaiNick/shark-no-kari.git .
 
 # Configure environment
 cp .env.example .env

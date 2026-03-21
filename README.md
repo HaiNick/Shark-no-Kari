@@ -43,6 +43,7 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
 - [Docker](#docker)
 - [Resource Usage](#resource-usage)
 - [Troubleshooting](#troubleshooting)
+- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ---
@@ -369,6 +370,16 @@ The `header_up Host localhost:8000` directive in the Caddyfile handles this. If 
 1. Verify the server is running: `curl -s https://your-domain.com/mcp | head`
 2. Check the connector status in claude.ai **Settings** -> **Connectors**
 3. Try removing and re-adding the connector
+
+---
+
+## Acknowledgements
+
+- [Scrapling](https://github.com/D4Vinci/Scrapling) — the scraping engine that powers both tools (stealth HTTP + headless browser via Camoufox)
+- [FastMCP](https://github.com/modelcontextprotocol/python-sdk) — official Python MCP SDK that makes building MCP servers painless
+- [Caddy](https://caddyserver.com) — automatic HTTPS and dead-simple reverse proxy config
+- [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion
+- [uvicorn](https://www.uvicorn.org) — fast ASGI server
 
 ---
 

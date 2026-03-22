@@ -9,7 +9,7 @@ Stealth HTTP fetching · Headless browser · Cloudflare bypass · CSS selectors 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-8A2BE2)](https://modelcontextprotocol.io)
-[![Scrapling](https://img.shields.io/badge/Scrapling-0.3-green)](https://github.com/D4Vinci/Scrapling)
+[![Scrapling](https://img.shields.io/pypi/v/scrapling?label=Scrapling&color=green)](https://github.com/D4Vinci/Scrapling)
 
 _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected sites, and JS-rendered pages._
 **Shark-no-Kari** is a remote MCP server that gives Claude two new tools powered by [Scrapling](https://github.com/D4Vinci/Scrapling) — a fast HTTP fetcher with stealth headers and a real headless browser with anti-bot evasion. Deploy it on any VPS with Docker, add the URL as a custom connector in claude.ai, and Claude can fetch pages that were previously unreachable.

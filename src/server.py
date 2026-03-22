@@ -5,6 +5,7 @@ pages that web_fetch fails on (GitHub, Cloudflare-protected, etc.)
 """
 
 import os
+import asyncio
 import logging
 import html2text
 from typing import Optional
@@ -80,7 +81,7 @@ def _build_response(page, css_selector: Optional[str], to_markdown: bool) -> str
 # --------------------------------------------------------------------------- #
 
 @mcp.tool()
-def fetch_page(
+async def fetch_page(
     url: str,
     css_selector: str = "",
     to_markdown: bool = True,
@@ -94,11 +95,13 @@ def fetch_page(
         css_selector: Optional CSS selector to extract specific elements.
         to_markdown: Convert HTML to readable Markdown (default True).
     """
-    from scrapling.fetchers import Fetcher
+    def _sync_fetch():
+        from scrapling.fetchers import Fetcher
+        return Fetcher.get(url, stealthy_headers=True, follow_redirects=True)
 
     logger.info(f"fetch_page: {url}")
     try:
-        page = Fetcher.get(url, stealthy_headers=True, follow_redirects=True)
+        page = await asyncio.to_thread(_sync_fetch)
     except Exception as e:
         return f"Fetch failed: {e}"
 
@@ -109,7 +112,7 @@ def fetch_page(
 
 
 @mcp.tool()
-def stealth_fetch_page(
+async def stealth_fetch_page(
     url: str,
     css_selector: str = "",
     to_markdown: bool = True,
@@ -126,16 +129,18 @@ def stealth_fetch_page(
         to_markdown: Convert HTML to readable Markdown (default True).
         wait_seconds: Seconds to wait for JS to render (default 3).
     """
-    from scrapling.fetchers import StealthyFetcher
-
-    logger.info(f"stealth_fetch_page: {url}")
-    try:
-        page = StealthyFetcher.fetch(
+    def _sync_fetch():
+        from scrapling.fetchers import StealthyFetcher
+        return StealthyFetcher.fetch(
             url,
             headless=True,
             network_idle=True,
             wait_after_idle=wait_seconds,
         )
+
+    logger.info(f"stealth_fetch_page: {url}")
+    try:
+        page = await asyncio.to_thread(_sync_fetch)
     except Exception as e:
         return f"Stealth fetch failed: {e}"
 

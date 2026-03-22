@@ -34,9 +34,13 @@ mcp = FastMCP(
         "Works for GitHub, docs sites, static pages, and most URLs.\n"
         "- stealth_fetch_page: Use ONLY if fetch_page fails or the site is known "
         "to have heavy bot protection (Cloudflare Turnstile, etc.). "
-        "Slower (5-15s) as it launches a real headless browser.\n\n"
+        "Slower (5-15s) as it launches a real headless browser.\n"
+        "- extract_elements: Use when you need structured data from a page. "
+        "Pass a dict of field names to CSS selectors and get JSON back. "
+        "Set use_stealth=True for bot-protected sites.\n\n"
         "Tips:\n"
-        "- Use css_selector to extract specific elements instead of full pages\n"
+        "- Use css_selector on fetch_page/stealth_fetch_page for simple single-selector extraction\n"
+        "- Use extract_elements when you need multiple different pieces of data from one page\n"
         "- to_markdown=True (default) converts HTML to readable text\n"
         "- Always try fetch_page before stealth_fetch_page"
     ),
@@ -160,6 +164,64 @@ async def stealth_fetch_page(
         return f"HTTP {page.status} for {url}"
 
     return _build_response(page, css_selector or None, to_markdown)
+
+
+@mcp.tool()
+async def extract_elements(
+    url: str,
+    selectors: dict[str, str],
+    use_stealth: bool = False,
+) -> str:
+    """
+    Fetch a page and extract multiple elements using CSS selectors.
+    Returns structured JSON with the results.
+
+    Args:
+        url: The full URL to fetch.
+        selectors: Dict mapping field names to CSS selectors, e.g. {"title": "h1", "price": ".product-price", "description": ".content p"}
+        use_stealth: Use headless browser with anti-bot evasion (default False).
+    """
+    import orjson
+
+    def _sync_fetch(proxy=None):
+        if use_stealth:
+            from scrapling.fetchers import StealthyFetcher
+            return StealthyFetcher.fetch(url, headless=True, network_idle=True)
+        else:
+            from scrapling.fetchers import Fetcher
+            kwargs = dict(stealthy_headers=True, follow_redirects=True)
+            if proxy:
+                kwargs["proxy"] = proxy
+            return Fetcher.get(url, **kwargs)
+
+    logger.info(f"extract_elements: {url} (stealth={use_stealth})")
+    try:
+        page = await asyncio.to_thread(_sync_fetch)
+        if page.status != 200:
+            raise Exception(f"HTTP {page.status}")
+    except Exception as e:
+        if PROXY_URL and not use_stealth:
+            logger.info(f"extract_elements: direct failed ({e}), retrying via proxy")
+            try:
+                page = await asyncio.to_thread(_sync_fetch, PROXY_URL)
+            except Exception as e:
+                return f"Fetch failed (via proxy): {e}"
+            if page.status != 200:
+                return f"HTTP {page.status} for {url} (via proxy)"
+        else:
+            return f"Fetch failed: {e}"
+
+    result = {}
+    for name, selector in selectors.items():
+        elements = page.css(selector)
+        if not elements:
+            result[name] = None
+        elif len(elements) == 1:
+            result[name] = elements[0].text or None
+        else:
+            result[name] = [el.text for el in elements if el.text]
+
+    return orjson.dumps(result, option=orjson.OPT_INDENT_2).decode()
 
 
 # --------------------------------------------------------------------------- #

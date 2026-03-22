@@ -19,6 +19,7 @@ logger = logging.getLogger("shark-no-kari")
 # --------------------------------------------------------------------------- #
 
 API_KEY = os.getenv("MCP_API_KEY", "")
+PROXY_URL = os.getenv("PROXY_URL", "")
 
 mcp = FastMCP(
     "Shark-no-Kari",
@@ -95,18 +96,29 @@ async def fetch_page(
         css_selector: Optional CSS selector to extract specific elements.
         to_markdown: Convert HTML to readable Markdown (default True).
     """
-    def _sync_fetch():
+    def _sync_fetch(proxy=None):
         from scrapling.fetchers import Fetcher
-        return Fetcher.get(url, stealthy_headers=True, follow_redirects=True)
+        kwargs = dict(stealthy_headers=True, follow_redirects=True)
+        if proxy:
+            kwargs["proxy"] = proxy
+        return Fetcher.get(url, **kwargs)
 
     logger.info(f"fetch_page: {url}")
     try:
         page = await asyncio.to_thread(_sync_fetch)
+        if page.status != 200:
+            raise Exception(f"HTTP {page.status}")
     except Exception as e:
-        return f"Fetch failed: {e}"
-
-    if page.status != 200:
-        return f"HTTP {page.status} for {url}"
+        if PROXY_URL:
+            logger.info(f"fetch_page: direct failed ({e}), retrying via proxy")
+            try:
+                page = await asyncio.to_thread(_sync_fetch, PROXY_URL)
+            except Exception as e:
+                return f"Fetch failed (via proxy): {e}"
+            if page.status != 200:
+                return f"HTTP {page.status} for {url} (via proxy)"
+        else:
+            return f"Fetch failed: {e}"
 
     return _build_response(page, css_selector or None, to_markdown)
 
@@ -186,6 +198,8 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
 
     logger.info(f"Starting Shark-no-Kari on {host}:{port}")
+    if PROXY_URL:
+        logger.info("SOCKS5 proxy fallback is ENABLED")
     if API_KEY:
         logger.info("Bearer token auth is ENABLED")
     else:

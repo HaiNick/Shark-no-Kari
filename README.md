@@ -252,6 +252,7 @@ Shark-no-Kari/
 | Variable      | Default | Description                                                         |
 | ------------- | ------- | ------------------------------------------------------------------- |
 | `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist)  |
+| `PROXY_URL`   | _(empty)_ | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Format: `socks5://user:pass@host:port` |
 | `HOST`        | `0.0.0.0` | Server bind address                                               |
 | `PORT`        | `8000`    | Server port                                                       |
 
@@ -364,6 +365,15 @@ respond @blocked 403
 ### MCP SDK rejects requests with "Host header mismatch"
 
 The `header_up Host localhost:8000` directive in the Caddyfile handles this. If you've customised the Caddyfile, ensure the header rewrite is present. See [DNS Rebinding Protection Workaround](#dns-rebinding-protection-workaround).
+
+### Sites block requests with HTTP/2 PROTOCOL_ERROR
+
+Some sites (e.g. xda-developers.com) reject requests from datacenter IPs at the protocol level. Set `PROXY_URL` in `.env` to enable automatic proxy fallback — requests are first tried directly, and only retried through the proxy if the direct request fails or returns a non-200 status:
+
+```bash
+# NordVPN SOCKS5 example (get credentials from NordVPN dashboard > Services > Service credentials)
+PROXY_URL=socks5://user:pass@amsterdam.socks.nordhold.net:1080
+```
 
 ### Claude doesn't see the tools
 

@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       - MCP_API_KEY=${MCP_API_KEY:-}
+      - PROXY_URL=${PROXY_URL:-}
       - HOST=0.0.0.0
       - PORT=8000
     expose:

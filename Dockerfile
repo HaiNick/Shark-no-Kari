@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # System deps for Scrapling's browser fetchers (Camoufox/Playwright)
 RUN apt-get update && apt-get install -y --no-install-recommends \

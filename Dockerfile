@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Scrapling's browser dependencies (Camoufox, Playwright, etc.)
 RUN scrapling install
 
+COPY pyproject.toml .
 COPY src/ ./src/
 
 EXPOSE 8000

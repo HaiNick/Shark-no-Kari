@@ -1,13 +1,9 @@
 services:
   shark-no-kari:
-    build: .
+    image: ghcr.io/hainick/shark-no-kari:latest
     container_name: shark-no-kari
     restart: unless-stopped
-    environment:
-      - MCP_API_KEY=${MCP_API_KEY:-}
-      - PROXY_URL=${PROXY_URL:-}
-      - HOST=0.0.0.0
-      - PORT=8000
+    env_file: .env
     expose:
       - "8000"
     # Shared memory needed for headless browsers

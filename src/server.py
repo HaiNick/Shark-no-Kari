@@ -5,6 +5,7 @@ pages that web_fetch fails on (GitHub, Cloudflare-protected, etc.)
 """
 
 import os
+import re
 import asyncio
 import logging
 import html2text
@@ -42,7 +43,8 @@ mcp = FastMCP(
         "- Use css_selector on fetch_page/stealth_fetch_page for simple single-selector extraction\n"
         "- Use extract_elements when you need multiple different pieces of data from one page\n"
         "- to_markdown=True (default) converts HTML to readable text\n"
-        "- Always try fetch_page before stealth_fetch_page"
+        "- Always try fetch_page before stealth_fetch_page\n"
+        "- get_youtube_transcript: Fetch YouTube video transcripts/captions by URL."
     ),
     stateless_http=True,
     json_response=True,
@@ -222,6 +224,52 @@ async def extract_elements(
             result[name] = [el.text for el in elements if el.text]
 
     return orjson.dumps(result, option=orjson.OPT_INDENT_2).decode()
+
+
+@mcp.tool()
+async def get_youtube_transcript(url: str, lang: str = "en") -> str:
+    """
+    Fetch the transcript/captions for a YouTube video.
+
+    Args:
+        url: YouTube video URL (watch, youtu.be, or /shorts/ link).
+        lang: Preferred language code (default "en").
+    """
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
+
+    pattern = r"(?:v=|youtu\.be/|/shorts/)([A-Za-z0-9_-]{11})"
+    match = re.search(pattern, url)
+    if not match:
+        return f"Failed to extract video ID from URL: {url}"
+
+    video_id = match.group(1)
+
+    def _sync_fetch():
+        ytt = YouTubeTranscriptApi()
+        try:
+            transcript = ytt.fetch(video_id, languages=[lang])
+        except NoTranscriptFound:
+            transcript_list = ytt.list(video_id)
+            transcript = transcript_list.find_transcript(
+                list(transcript_list._manually_created_transcripts.keys())
+                or list(transcript_list._generated_transcripts.keys())
+            ).fetch()
+        lines = [f"[{int(entry.start)}s] {entry.text}" for entry in transcript]
+        return "\n".join(lines)
+
+    logger.info(f"get_youtube_transcript: {video_id} (lang={lang})")
+    try:
+        result = await asyncio.to_thread(_sync_fetch)
+    except TranscriptsDisabled:
+        return f"Transcripts are disabled for video: {video_id}"
+    except Exception as e:
+        return f"Failed to fetch transcript: {e}"
+
+    if len(result) > 80_000:
+        result = result[:80_000] + "\n\n[... truncated ...]"
+
+    return f"Transcript for https://www.youtube.com/watch?v={video_id}:\n\n{result}"
 
 
 # --------------------------------------------------------------------------- #

@@ -4,7 +4,7 @@
 
 **Remote MCP server for web scraping with anti-bot evasion**
 
-Stealth HTTP fetching · Headless browser · Cloudflare bypass · CSS selectors · Markdown conversion
+Stealth HTTP fetching · Headless browser · Cloudflare bypass · CSS selectors · YouTube transcripts · Markdown conversion
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://python.org)
@@ -12,7 +12,7 @@ Stealth HTTP fetching · Headless browser · Cloudflare bypass · CSS selectors 
 [![Scrapling](https://img.shields.io/pypi/v/scrapling?label=Scrapling&color=green)](https://github.com/D4Vinci/Scrapling)
 
 _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected sites, and JS-rendered pages._
-**Shark-no-Kari** is a remote MCP server that gives Claude two new tools powered by [Scrapling](https://github.com/D4Vinci/Scrapling) — a fast HTTP fetcher with stealth headers and a real headless browser with anti-bot evasion. Deploy it on any VPS with Docker, add the URL as a custom connector in claude.ai, and Claude can fetch pages that were previously unreachable.
+**Shark-no-Kari** is a remote MCP server that gives Claude powerful web tools powered by [Scrapling](https://github.com/D4Vinci/Scrapling) — a fast HTTP fetcher with stealth headers, a real headless browser with anti-bot evasion, structured element extraction, and YouTube transcript fetching. Deploy it on any VPS with Docker, add the URL as a custom connector in claude.ai, and Claude can fetch pages that were previously unreachable.
 
 </div>
 
@@ -54,11 +54,19 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
 | --------------------- | ---------------------------------------------------------------------------- | -------- |
 | **`fetch_page`**      | Fast HTTP request with stealth headers. Works for GitHub, docs, static pages | ~1-2s    |
 | **`stealth_fetch_page`** | Real headless browser with anti-bot evasion. Bypasses Cloudflare, renders JS | ~5-15s   |
+| **`extract_elements`** | Fetch a page and extract multiple elements via CSS selectors as structured JSON | ~1-2s |
+| **`get_youtube_transcript`** | Fetch YouTube video transcripts/captions with language fallback | ~1-3s |
 
-Both tools support:
+`fetch_page` and `stealth_fetch_page` support:
 
 - **`css_selector`** — extract specific elements instead of the full page
 - **`to_markdown`** — convert HTML to readable Markdown (default: `true`)
+- Automatic truncation at 80,000 characters
+
+`get_youtube_transcript` supports:
+
+- Standard watch URLs, `youtu.be` short links, and `/shorts/` URLs
+- Preferred language with automatic fallback to the first available language
 - Automatic truncation at 80,000 characters
 
 ---
@@ -209,11 +217,17 @@ Every request must then include an `Authorization: Bearer <key>` header. Claude 
 Shark-no-Kari/
 ├── src/
 │   └── server.py            MCP server (FastMCP + Scrapling tools + auth middleware)
+├── tests/
+│   └── test_server.py       pytest test suite for all tools
 ├── scripts/
 │   └── setup-vps.sh         Bootstrap script for a fresh Ubuntu VPS
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml  CI: build & push Docker image to ghcr.io
 ├── Caddyfile                 Reverse proxy config (auto HTTPS + IP allowlist)
 ├── docker-compose.yml        Orchestrates MCP server + Caddy
 ├── Dockerfile                Builds the MCP server image (Python 3.12 + browser deps)
+├── pyproject.toml            pytest configuration
 ├── requirements.txt          Python dependencies
 ├── .env.example              Environment variable template
 ├── LICENSE                   MIT
@@ -238,6 +252,8 @@ Shark-no-Kari/
               │                  │
               │  fetch_page()    │  → Scrapling Fetcher (stealth HTTP)
               │  stealth_fetch() │  → Scrapling StealthyFetcher (headless browser)
+              │  extract_elems() │  → Multi-selector structured extraction
+              │  yt_transcript() │  → YouTube transcript API
               │                  │
               │  html2text       │  → Markdown conversion + truncation
               └──────────────────┘
@@ -311,7 +327,7 @@ docker compose down             # Stop
 
 | Service          | Image              | Ports     | Purpose                          |
 | ---------------- | ------------------ | --------- | -------------------------------- |
-| `shark-no-kari`  | Built from `Dockerfile` | 8000 (internal) | MCP server                |
+| `shark-no-kari`  | `ghcr.io/hainick/shark-no-kari:latest` | 8000 (internal) | MCP server |
 | `caddy`          | `caddy:2-alpine`   | 80, 443   | Reverse proxy, auto HTTPS, ACL   |
 
 ### Dockerfile
@@ -324,6 +340,20 @@ Multi-step build:
 4. Copy `src/` and start with `python src/server.py`
 
 The container uses `shm_size: 512mb` for headless browser shared memory.
+
+---
+
+## Testing
+
+```bash
+# Install dev dependencies
+pip install -r requirements.txt
+
+# Run the test suite
+pytest tests/ -v
+```
+
+The test suite covers all four tools with mocked external calls (no network requests needed).
 
 ---
 
@@ -390,6 +420,7 @@ PROXY_URL=socks5://user:pass@amsterdam.socks.nordhold.net:1080
 - [Caddy](https://caddyserver.com) — automatic HTTPS and dead-simple reverse proxy config
 - [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion
 - [uvicorn](https://www.uvicorn.org) — fast ASGI server
+- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) — YouTube transcript/caption fetching
 
 ---
 

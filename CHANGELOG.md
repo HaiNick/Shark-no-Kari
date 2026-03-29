@@ -6,6 +6,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [1.2.0] - 2026-03-29
+
+### Added
+- SOCKS5 proxy fallback for `get_youtube_transcript` — YouTube blocks datacenter IPs, now retries via `PROXY_URL` automatically
+- Dependabot for pip, Docker, and GitHub Actions dependency updates
+- GitHub Release workflow — creates releases from changelog on version tags
+- Issue templates (bug report, feature request) and PR template
+- Branch protection on `main` — requires PR review and passing CI
+
+### Changed
+- Dockerfile base image bumped from Python 3.12 to 3.14
+- GitHub Actions bumped: checkout v6, buildx v4, login v4, metadata v6, build-push v7
+
+### Fixed
+- Docker healthcheck now uses MCP POST ping instead of GET (was always showing unhealthy)
+- Dockerfile now copies `pyproject.toml` for version reading
+
 ## [1.1.0] - 2026-03-29
 
 ### Added
@@ -15,7 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
   - Truncation at 80,000 characters
 - GitHub Actions CI workflow — auto-builds and pushes Docker images to `ghcr.io` on push to `main` or version tags
 - Docker image layer caching via GitHub Actions cache
-- Test suite with 12 tests covering all tools (`pytest` + `pytest-asyncio`)
+- Test suite with 13 tests covering all tools (`pytest` + `pytest-asyncio`)
 - Version tracking via `pyproject.toml` and semver git tags
 - CHANGELOG
 

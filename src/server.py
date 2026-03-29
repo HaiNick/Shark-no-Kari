@@ -9,8 +9,13 @@ import re
 import asyncio
 import logging
 import html2text
+import tomllib
+from pathlib import Path
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+
+with open(Path(__file__).resolve().parent.parent / "pyproject.toml", "rb") as f:
+    __version__ = tomllib.load(f)["project"]["version"]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("shark-no-kari")
@@ -307,7 +312,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
 
-    logger.info(f"Starting Shark-no-Kari on {host}:{port}")
+    logger.info(f"Starting Shark-no-Kari v{__version__} on {host}:{port}")
     if PROXY_URL:
         logger.info("SOCKS5 proxy fallback is ENABLED")
     if API_KEY:

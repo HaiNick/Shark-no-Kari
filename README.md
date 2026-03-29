@@ -74,15 +74,17 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
 ## Quick Start
 
 ```bash
-# Clone the repo
-git clone https://github.com/HaiNick/Shark-no-Kari.git
-cd Shark-no-Kari
+# Create a directory and grab the required files
+mkdir shark-no-kari && cd shark-no-kari
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/docker-compose.yml
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/Caddyfile
 
-# Configure
-cp .env.example .env
+# Configure — edit .env with your domain and optional API key
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/.env.example
+mv .env.example .env
 
-# Build and start
-docker compose up -d --build
+# Start (pulls the pre-built image from ghcr.io)
+docker compose up -d
 ```
 
 Then add `https://your-domain.com/mcp` as a custom connector in [claude.ai](https://claude.ai) settings.
@@ -124,17 +126,21 @@ Or run the commands from [`scripts/setup-vps.sh`](scripts/setup-vps.sh) manually
 
 ```bash
 cd /opt/shark-no-kari
-git clone https://github.com/HaiNick/Shark-no-Kari.git .
+
+# Grab the required files
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/docker-compose.yml
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/Caddyfile
 
 # Configure environment
-cp .env.example .env
+curl -LO https://raw.githubusercontent.com/HaiNick/Shark-no-Kari/main/.env.example
+mv .env.example .env
 # Auth is disabled by default — Caddy IP allowlist handles security (see below)
 
-# Build and start
-docker compose up -d --build
+# Start (pulls the pre-built image from ghcr.io)
+docker compose up -d
 ```
 
-First build takes 3-5 minutes (downloading browser binaries). Verify:
+First pull downloads ~2 GB (browser binaries are included in the image). Verify:
 
 ```bash
 docker compose logs -f shark-no-kari
@@ -315,13 +321,15 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 
 ## Docker
 
-### Build and Run
+### Run
 
 ```bash
-docker compose up -d --build    # Build and start in background
+docker compose up -d            # Pull and start in background
 docker compose logs -f          # View logs
 docker compose down             # Stop
 ```
+
+Images are built automatically by CI and pushed to `ghcr.io/hainick/shark-no-kari`.
 
 ### Services
 

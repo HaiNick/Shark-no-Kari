@@ -100,6 +100,26 @@ class TestGetYoutubeTranscript:
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
         assert result.endswith("[... truncated ...]")
 
+    async def test_transcript_proxy_fallback(self):
+        entries = [_make_entry(0, "via proxy")]
+        call_count = 0
+
+        def make_api(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            inst = MagicMock()
+            if call_count == 1:
+                inst.fetch.side_effect = Exception("IP blocked by YouTube")
+            else:
+                inst.fetch.return_value = entries
+            return inst
+
+        with patch("youtube_transcript_api.YouTubeTranscriptApi", side_effect=make_api), \
+             patch("src.server.PROXY_URL", "socks5://proxy:1080"):
+            result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
+        assert "via proxy" in result
+        assert call_count == 2
+
 
 # --------------------------------------------------------------------------- #
 # fetch_page tests

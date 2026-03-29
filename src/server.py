@@ -250,8 +250,10 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
 
     video_id = match.group(1)
 
-    def _sync_fetch():
-        ytt = YouTubeTranscriptApi()
+    def _sync_fetch(proxy=None):
+        from youtube_transcript_api.proxies import GenericProxyConfig
+        proxy_config = GenericProxyConfig(https_url=proxy) if proxy else None
+        ytt = YouTubeTranscriptApi(proxy_config=proxy_config)
         try:
             transcript = ytt.fetch(video_id, languages=[lang])
         except NoTranscriptFound:
@@ -269,7 +271,16 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
     except TranscriptsDisabled:
         return f"Transcripts are disabled for video: {video_id}"
     except Exception as e:
-        return f"Failed to fetch transcript: {e}"
+        if PROXY_URL:
+            logger.info(f"get_youtube_transcript: direct failed ({e}), retrying via proxy")
+            try:
+                result = await asyncio.to_thread(_sync_fetch, PROXY_URL)
+            except TranscriptsDisabled:
+                return f"Transcripts are disabled for video: {video_id}"
+            except Exception as e2:
+                return f"Failed to fetch transcript (via proxy): {e2}"
+        else:
+            return f"Failed to fetch transcript: {e}"
 
     if len(result) > 80_000:
         result = result[:80_000] + "\n\n[... truncated ...]"

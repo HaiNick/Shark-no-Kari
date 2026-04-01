@@ -274,7 +274,7 @@ Shark-no-Kari/
 | Variable      | Default | Description                                                         |
 | ------------- | ------- | ------------------------------------------------------------------- |
 | `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist)  |
-| `PROXY_URL`   | _(empty)_ | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Format: `socks5://user:pass@host:port` |
+| `PROXY_URL`   | _(empty)_ | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Format: `socks5h://user:pass@host:port` |
 | `HOST`        | `0.0.0.0` | Server bind address                                               |
 | `PORT`        | `8000`    | Server port                                                       |
 
@@ -410,7 +410,8 @@ Some sites (e.g. xda-developers.com) reject requests from datacenter IPs at the 
 
 ```bash
 # NordVPN SOCKS5 example (get credentials from NordVPN dashboard > Services > Service credentials)
-PROXY_URL=socks5://user:pass@amsterdam.socks.nordhold.net:1080
+# Use socks5h:// (not socks5://) to delegate DNS resolution to the proxy
+PROXY_URL=socks5h://user:pass@amsterdam.nl.socks.nordhold.net:1080
 ```
 
 ### Claude doesn't see the tools

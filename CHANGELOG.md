@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Bumped Scrapling from >=0.3.2 to >=0.4.3 — includes proxy rotation, Cloudflare solver improvements, and MCP server enhancements
+
+### Fixed
+- SOCKS5 proxy fallback broken — `socks5://` resolves DNS locally which can fail in containers. Server now auto-normalizes `socks5://` to `socks5h://` at startup (delegates DNS to proxy) and logs a warning.
+
 ## [1.2.0] - 2026-03-29
 
 ### Added

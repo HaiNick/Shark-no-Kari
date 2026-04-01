@@ -27,6 +27,15 @@ logger = logging.getLogger("shark-no-kari")
 API_KEY = os.getenv("MCP_API_KEY", "")
 PROXY_URL = os.getenv("PROXY_URL", "")
 
+# socks5:// resolves DNS locally; socks5h:// delegates DNS to the proxy.
+# VPN proxies (NordVPN, etc.) expect proxy-side resolution, so normalize.
+if PROXY_URL.startswith("socks5://"):
+    PROXY_URL = "socks5h://" + PROXY_URL[len("socks5://"):]
+    logger.warning(
+        "PROXY_URL had socks5:// scheme — rewritten to socks5h:// "
+        "(delegates DNS to the proxy). Update your .env to silence this warning."
+    )
+
 mcp = FastMCP(
     "Shark-no-Kari",
     instructions=(

@@ -1,0 +1,81 @@
+name: Auto-tag on changelog update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - CHANGELOG.md
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    # Don't loop on our own version-bump commits
+    if: "!startsWith(github.event.head_commit.message, 'chore: bump version to')"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # Use RELEASE_PAT if available (needed to push to a protected main),
+          # otherwise fall back to GITHUB_TOKEN (works only if github-actions[bot]
+          # is allowed to bypass branch protection on main).
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Extract latest released version from CHANGELOG
+        id: version
+        run: |
+          # First "## [X.Y.Z]" header, skipping "[Unreleased]"
+          VERSION=$(awk '
+            /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+              match($0, /\[[0-9]+\.[0-9]+\.[0-9]+\]/)
+              print substr($0, RSTART+1, RLENGTH-2)
+              exit
+            }' CHANGELOG.md)
+          if [ -z "$VERSION" ]; then
+            echo "No released version header found in CHANGELOG.md"
+            exit 0
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Found version: $VERSION"
+
+      - name: Check if tag already exists
+        id: tag_check
+        if: steps.version.outputs.version != ''
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists, nothing to do"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump pyproject.toml if out of sync
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CURRENT=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          if [ "$CURRENT" = "$VERSION" ]; then
+            echo "pyproject.toml already at $VERSION, no bump needed"
+            exit 0
+          fi
+          echo "Bumping pyproject.toml: $CURRENT -> $VERSION"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version to $VERSION"
+          git push origin main
+
+      - name: Create and push tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Created and pushed tag $TAG"

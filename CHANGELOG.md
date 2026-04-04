@@ -8,10 +8,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-04
+
+### Added
+- Bundled `nordlynx-proxy` sidecar container for reliable SOCKS5 proxy fallback via NordVPN WireGuard tunnel — runs the NordVPN Linux client internally and exposes a local SOCKS5 proxy on the Docker network
+- `NORDVPN_TOKEN` and `NORDVPN_COUNTRY` environment variables
+
 ### Changed
+- `PROXY_URL` now defaults to local `socks5h://kari-nordlynx:1080` instead of remote NordVPN SOCKS5 endpoints
 - Bumped Scrapling from >=0.3.2 to >=0.4.3 — includes proxy rotation, Cloudflare solver improvements, and MCP server enhancements
 
 ### Fixed
+- Proxy fallback failing due to NordVPN blocking SOCKS5 connections from datacenter IPs
 - SOCKS5 proxy fallback broken — `socks5://` resolves DNS locally which can fail in containers. Server now auto-normalizes `socks5://` to `socks5h://` at startup (delegates DNS to proxy) and logs a warning.
 
 ## [1.2.0] - 2026-03-29

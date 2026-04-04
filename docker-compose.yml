@@ -10,6 +10,35 @@ services:
     shm_size: "512mb"
     networks:
       - mcp-net
+    depends_on:
+      nordlynx-proxy:
+        condition: service_healthy
+        required: false
+
+  nordlynx-proxy:
+    image: edgd1er/nordlynx-proxy:latest
+    container_name: kari-nordlynx
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
+      net.ipv4.conf.all.rp_filter: 2
+    environment:
+      NORDVPN_LOGIN: ${NORDVPN_TOKEN}
+      CONNECT: ${NORDVPN_COUNTRY:-Germany}
+      TECHNOLOGY: NordLynx
+      IPV6: "off"
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -x socks5h://127.0.0.1:1080 -s https://httpbin.org/ip || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
   caddy:
     image: caddy:2-alpine

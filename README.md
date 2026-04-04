@@ -262,6 +262,12 @@ Shark-no-Kari/
               │  yt_transcript() │  → YouTube transcript API
               │                  │
               │  html2text       │  → Markdown conversion + truncation
+              └────────┬─────────┘
+                       │ PROXY_URL fallback (on direct fetch failure)
+                       ▼
+              ┌──────────────────┐
+              │  nordlynx-proxy  │  NordVPN WireGuard tunnel (sidecar)
+              │  kari-nordlynx   │  dante SOCKS5 :1080 + tinyproxy :8888
               └──────────────────┘
 ```
 
@@ -274,7 +280,9 @@ Shark-no-Kari/
 | Variable      | Default | Description                                                         |
 | ------------- | ------- | ------------------------------------------------------------------- |
 | `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist)  |
-| `PROXY_URL`   | _(empty)_ | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Format: `socks5h://user:pass@host:port` |
+| `PROXY_URL`   | `socks5h://kari-nordlynx:1080` | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Defaults to the bundled `nordlynx-proxy` sidecar container |
+| `NORDVPN_TOKEN` | _(empty)_ | NordVPN access token from [Nord Account > Manual setup](https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/). Required for proxy fallback via `nordlynx-proxy` |
+| `NORDVPN_COUNTRY` | `Germany` | NordVPN server country used by `nordlynx-proxy` for the WireGuard tunnel |
 | `HOST`        | `0.0.0.0` | Server bind address                                               |
 | `PORT`        | `8000`    | Server port                                                       |
 
@@ -336,6 +344,7 @@ Images are built automatically by CI and pushed to `ghcr.io/hainick/shark-no-kar
 | Service          | Image              | Ports     | Purpose                          |
 | ---------------- | ------------------ | --------- | -------------------------------- |
 | `shark-no-kari`  | `ghcr.io/hainick/shark-no-kari:latest` | 8000 (internal) | MCP server |
+| `nordlynx-proxy` | `edgd1er/nordlynx-proxy:latest` | 1080, 8888 (internal) | NordVPN WireGuard tunnel + local SOCKS5/HTTP proxy |
 | `caddy`          | `caddy:2-alpine`   | 80, 443   | Reverse proxy, auto HTTPS, ACL   |
 
 ### Dockerfile
@@ -406,13 +415,24 @@ The `header_up Host localhost:8000` directive in the Caddyfile handles this. If 
 
 ### Sites block requests with HTTP/2 PROTOCOL_ERROR
 
-Some sites (e.g. xda-developers.com) reject requests from datacenter IPs at the protocol level. Set `PROXY_URL` in `.env` to enable automatic proxy fallback — requests are first tried directly, and only retried through the proxy if the direct request fails or returns a non-200 status:
+Some sites (e.g. xda-developers.com) reject requests from datacenter IPs at the protocol level. The stack ships with a bundled `nordlynx-proxy` sidecar container that runs the NordVPN Linux client internally, opens a NordLynx (WireGuard) tunnel, and exposes a local SOCKS5 proxy on port 1080 that only the `shark-no-kari` container can reach over the Docker network. Requests are first tried directly, and only retried through the proxy if the direct request fails or returns a non-200 status.
+
+To enable it, set a NordVPN access token in `.env` (get one from [Nord Account > Manual setup](https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/) by clicking "Get Access token"):
 
 ```bash
-# NordVPN SOCKS5 example (get credentials from NordVPN dashboard > Services > Service credentials)
-# Use socks5h:// (not socks5://) to delegate DNS resolution to the proxy
-PROXY_URL=socks5h://user:pass@amsterdam.nl.socks.nordhold.net:1080
+NORDVPN_TOKEN=your-access-token-here
+NORDVPN_COUNTRY=Germany
+PROXY_URL=socks5h://kari-nordlynx:1080
 ```
+
+Use `socks5h://` (not `socks5://`) so the proxy handles DNS resolution. If you don't want to run a proxy, leave `NORDVPN_TOKEN` empty and remove or comment out the `nordlynx-proxy` service and the `depends_on` block in `docker-compose.yml`.
+
+### nordlynx-proxy fails to connect
+
+- Check logs: `docker compose logs kari-nordlynx` for auth errors
+- Verify the token is valid at https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/
+- Try a different country in `.env`: `NORDVPN_COUNTRY=Netherlands`
+- The container needs `privileged: true`, `NET_ADMIN` + `SYS_MODULE` capabilities, and the `net.ipv6.conf.all.disable_ipv6` + `net.ipv4.conf.all.rp_filter` sysctls (all preconfigured in `docker-compose.yml`). Privileged mode is required by the Debian-based nordlynx-proxy image because the NordVPN client writes sysctls itself at connect time
 
 ### Claude doesn't see the tools
 
@@ -430,6 +450,7 @@ PROXY_URL=socks5h://user:pass@amsterdam.nl.socks.nordhold.net:1080
 - [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion
 - [uvicorn](https://www.uvicorn.org) — fast ASGI server
 - [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) — YouTube transcript/caption fetching
+- [nordlynx-proxy](https://github.com/edgd1er/nordlynx-proxy) — NordVPN WireGuard tunnel in Docker with local SOCKS5/HTTP proxy
 
 ---
 

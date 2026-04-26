@@ -1,5 +1,5 @@
 mcp[cli]>=1.9.0
-scrapling[fetchers]>=0.4.3
+scrapling[fetchers]>=0.4.7
 html2text>=2024.2.26
 uvicorn[standard]>=0.34.0
 starlette>=0.46.0

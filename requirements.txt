@@ -2,7 +2,7 @@ mcp[cli]>=1.9.0
 scrapling[fetchers]>=0.4.3
 html2text>=2024.2.26
 uvicorn[standard]>=0.34.0
-starlette>=0.46.0
+starlette>=1.0.0
 youtube-transcript-api>=0.6.3
 requests[socks]>=2.32.0
 

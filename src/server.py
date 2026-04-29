@@ -12,7 +12,7 @@ import html2text
 import tomllib
 from pathlib import Path
 from typing import Optional
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 with open(Path(__file__).resolve().parent.parent / "pyproject.toml", "rb") as f:
     __version__ = tomllib.load(f)["project"]["version"]
@@ -26,43 +26,92 @@ logger = logging.getLogger("shark-no-kari")
 
 API_KEY = os.getenv("MCP_API_KEY", "")
 PROXY_URL = os.getenv("PROXY_URL", "")
+OIDC_ENABLED = os.getenv("OIDC_ENABLED", "").lower() in {"1", "true", "yes"}
 
 # socks5:// resolves DNS locally; socks5h:// delegates DNS to the proxy.
 # VPN proxies (NordVPN, etc.) expect proxy-side resolution, so normalize.
 if PROXY_URL.startswith("socks5://"):
     PROXY_URL = "socks5h://" + PROXY_URL[len("socks5://"):]
     logger.warning(
-        "PROXY_URL had socks5:// scheme — rewritten to socks5h:// "
+        "PROXY_URL had socks5:// scheme - rewritten to socks5h:// "
         "(delegates DNS to the proxy). Update your .env to silence this warning."
     )
 
-mcp = FastMCP(
-    "Shark-no-Kari",
-    instructions=(
-        "Shark-no-Kari is a web fetching tool. Use it when:\n"
-        "- web_fetch fails with 'Failed to fetch' errors\n"
-        "- The target is GitHub raw content, blob URLs, or githubusercontent.com\n"
-        "- The site is behind Cloudflare or other bot protection\n"
-        "- The page requires JavaScript rendering\n\n"
-        "Tool selection:\n"
-        "- fetch_page: Try this FIRST. Fast HTTP request with stealth headers. "
-        "Works for GitHub, docs sites, static pages, and most URLs.\n"
-        "- stealth_fetch_page: Use ONLY if fetch_page fails or the site is known "
-        "to have heavy bot protection (Cloudflare Turnstile, etc.). "
-        "Slower (5-15s) as it launches a real headless browser.\n"
-        "- extract_elements: Use when you need structured data from a page. "
-        "Pass a dict of field names to CSS selectors and get JSON back. "
-        "Set use_stealth=True for bot-protected sites.\n\n"
-        "Tips:\n"
-        "- Use css_selector on fetch_page/stealth_fetch_page for simple single-selector extraction\n"
-        "- Use extract_elements when you need multiple different pieces of data from one page\n"
-        "- to_markdown=True (default) converts HTML to readable text\n"
-        "- Always try fetch_page before stealth_fetch_page\n"
-        "- get_youtube_transcript: Fetch YouTube video transcripts/captions by URL."
-    ),
-    stateless_http=True,
-    json_response=True,
+if OIDC_ENABLED and API_KEY:
+    raise RuntimeError(
+        "OIDC_ENABLED and MCP_API_KEY cannot both be set. Choose one auth mode."
+    )
+
+_OIDC_CONFIG_URL = os.getenv("OIDC_CONFIG_URL", "")
+_OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID", "")
+_OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET", "")
+_OIDC_BASE_URL = os.getenv("OIDC_BASE_URL", "")
+_JWT_SIGNING_KEY = os.getenv("JWT_SIGNING_KEY", "")
+_STORAGE_ENCRYPTION_KEY = os.getenv("STORAGE_ENCRYPTION_KEY", "")
+
+if OIDC_ENABLED:
+    _missing = [
+        name
+        for name, val in [
+            ("OIDC_CONFIG_URL", _OIDC_CONFIG_URL),
+            ("OIDC_CLIENT_ID", _OIDC_CLIENT_ID),
+            ("OIDC_BASE_URL", _OIDC_BASE_URL),
+            ("JWT_SIGNING_KEY", _JWT_SIGNING_KEY),
+            ("STORAGE_ENCRYPTION_KEY", _STORAGE_ENCRYPTION_KEY),
+        ]
+        if not val
+    ]
+    if _missing:
+        raise RuntimeError(
+            f"OIDC_ENABLED=true but missing required vars: {', '.join(_missing)}"
+        )
+
+_INSTRUCTIONS = (
+    "Shark-no-Kari is a web fetching tool. Use it when:\n"
+    "- web_fetch fails with 'Failed to fetch' errors\n"
+    "- The target is GitHub raw content, blob URLs, or githubusercontent.com\n"
+    "- The site is behind Cloudflare or other bot protection\n"
+    "- The page requires JavaScript rendering\n\n"
+    "Tool selection:\n"
+    "- fetch_page: Try this FIRST. Fast HTTP request with stealth headers. "
+    "Works for GitHub, docs sites, static pages, and most URLs.\n"
+    "- stealth_fetch_page: Use ONLY if fetch_page fails or the site is known "
+    "to have heavy bot protection (Cloudflare Turnstile, etc.). "
+    "Slower (5-15s) as it launches a real headless browser.\n"
+    "- extract_elements: Use when you need structured data from a page. "
+    "Pass a dict of field names to CSS selectors and get JSON back. "
+    "Set use_stealth=True for bot-protected sites.\n\n"
+    "Tips:\n"
+    "- Use css_selector on fetch_page/stealth_fetch_page for simple single-selector extraction\n"
+    "- Use extract_elements when you need multiple different pieces of data from one page\n"
+    "- to_markdown=True (default) converts HTML to readable text\n"
+    "- Always try fetch_page before stealth_fetch_page\n"
+    "- get_youtube_transcript: Fetch YouTube video transcripts/captions by URL."
 )
+
+if OIDC_ENABLED:
+    from fastmcp.server.auth.oidc_proxy import OIDCProxy
+    from key_value.aio.stores.filetree.store import FileTreeStore
+    from key_value.aio.wrappers.encryption.fernet import FernetEncryptionWrapper
+    from cryptography.fernet import Fernet
+
+    _client_storage = FernetEncryptionWrapper(
+        key_value=FileTreeStore(data_directory="/app/oauth_state"),
+        fernet=Fernet(_STORAGE_ENCRYPTION_KEY),
+    )
+    _auth = OIDCProxy(
+        config_url=_OIDC_CONFIG_URL,
+        client_id=_OIDC_CLIENT_ID,
+        client_secret=_OIDC_CLIENT_SECRET or None,
+        base_url=_OIDC_BASE_URL,
+        jwt_signing_key=_JWT_SIGNING_KEY,
+        required_scopes=["openid", "profile", "email"],
+        client_storage=_client_storage,
+    )
+    mcp = FastMCP(name="Shark-no-Kari", instructions=_INSTRUCTIONS, auth=_auth)
+else:
+    mcp = FastMCP(name="Shark-no-Kari", instructions=_INSTRUCTIONS)
+
 
 # --------------------------------------------------------------------------- #
 # Helpers
@@ -315,11 +364,9 @@ if API_KEY:
                 return JSONResponse({"error": "unauthorized"}, status_code=401)
             return await call_next(request)
 
-    # Access the underlying Starlette app and add middleware
-    app = mcp.streamable_http_app()
+app = mcp.http_app(stateless_http=True, json_response=True)
+if API_KEY:
     app.add_middleware(BearerAuthMiddleware)
-else:
-    app = mcp.streamable_http_app()
 
 
 # --------------------------------------------------------------------------- #
@@ -335,7 +382,9 @@ if __name__ == "__main__":
     logger.info(f"Starting Shark-no-Kari v{__version__} on {host}:{port}")
     if PROXY_URL:
         logger.info("SOCKS5 proxy fallback is ENABLED")
-    if API_KEY:
+    if OIDC_ENABLED:
+        logger.info("OIDC authentication is ENABLED (Pocket ID)")
+    elif API_KEY:
         logger.info("Bearer token auth is ENABLED")
     else:
         logger.warning("No MCP_API_KEY set - server is unauthenticated!")

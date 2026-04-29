@@ -8,6 +8,8 @@ services:
       - "8000"
     # Shared memory needed for headless browsers
     shm_size: "512mb"
+    volumes:
+      - kari_oauth_state:/app/oauth_state
     networks:
       - mcp-net
     depends_on:
@@ -57,6 +59,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  kari_oauth_state:
 
 networks:
   mcp-net:

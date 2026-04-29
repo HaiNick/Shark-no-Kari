@@ -1,6 +1,8 @@
 """Tests for Shark-no-Kari MCP server tools."""
 
 import json
+import os
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, PropertyMock
 
@@ -182,3 +184,101 @@ class TestExtractElements:
             result = await extract_elements("https://example.com", {"title": "h1.missing"})
         parsed = json.loads(result)
         assert parsed["title"] is None
+
+
+# --------------------------------------------------------------------------- #
+# OIDC startup tests
+# --------------------------------------------------------------------------- #
+
+def _purge_server_module():
+    """Remove src.server from sys.modules so it can be freshly re-imported."""
+    for key in list(sys.modules.keys()):
+        if key == "src.server":
+            del sys.modules[key]
+
+
+class TestOIDCStartup:
+    """Tests for module-level OIDC validation that runs at import time."""
+
+    @pytest.fixture(autouse=True)
+    def restore_module(self):
+        """Re-import the real server module after each test in this class."""
+        original = sys.modules.get("src.server")
+        yield
+        _purge_server_module()
+        if original is not None:
+            sys.modules["src.server"] = original
+
+    def test_oidc_missing_vars_raises(self):
+        """RuntimeError at startup when OIDC_ENABLED=true but required vars absent."""
+        env = {
+            "OIDC_ENABLED": "true",
+            "MCP_API_KEY": "",
+            "OIDC_CONFIG_URL": "",
+            "OIDC_CLIENT_ID": "",
+            "OIDC_BASE_URL": "",
+            "JWT_SIGNING_KEY": "",
+            "STORAGE_ENCRYPTION_KEY": "",
+        }
+        _purge_server_module()
+        with patch.dict(os.environ, env, clear=False):
+            with pytest.raises(RuntimeError, match="missing required vars"):
+                import src.server
+
+    def test_oidc_and_api_key_raises(self):
+        """RuntimeError at startup when both OIDC_ENABLED and MCP_API_KEY are set."""
+        env = {
+            "OIDC_ENABLED": "true",
+            "MCP_API_KEY": "some-key",
+        }
+        _purge_server_module()
+        with patch.dict(os.environ, env, clear=False):
+            with pytest.raises(RuntimeError, match="cannot both be set"):
+                import src.server
+
+    def test_oidc_startup_succeeds_with_mocked_deps(self):
+        """Server module loads cleanly with OIDC_ENABLED=true when deps are mocked."""
+        from cryptography.fernet import Fernet
+        key = Fernet.generate_key().decode()
+
+        env = {
+            "OIDC_ENABLED": "true",
+            "MCP_API_KEY": "",
+            "OIDC_CONFIG_URL": "https://id.example.com/.well-known/openid-configuration",
+            "OIDC_CLIENT_ID": "test-client",
+            "OIDC_CLIENT_SECRET": "test-secret",
+            "OIDC_BASE_URL": "https://kari.example.com",
+            "JWT_SIGNING_KEY": "A" * 32,
+            "STORAGE_ENCRYPTION_KEY": key,
+        }
+
+        # fastmcp calls auth._get_resource_url() when building the HTTP app.
+        # Returning None tells it to skip resource-metadata URL construction.
+        mock_auth_instance = MagicMock()
+        mock_auth_instance._get_resource_url.return_value = None
+        mock_oidc_cls = MagicMock(return_value=mock_auth_instance)
+        mock_file_tree_cls = MagicMock(return_value=MagicMock())
+        mock_fernet_wrapper_cls = MagicMock(return_value=MagicMock())
+
+        injected_modules = {
+            "fastmcp.server.auth.oidc_proxy": MagicMock(OIDCProxy=mock_oidc_cls),
+            "key_value.aio.stores.filetree.store": MagicMock(FileTreeStore=mock_file_tree_cls),
+            "key_value.aio.wrappers.encryption.fernet": MagicMock(
+                FernetEncryptionWrapper=mock_fernet_wrapper_cls
+            ),
+        }
+
+        # Remove any cached real versions of these modules so our mocks take effect.
+        for mod in injected_modules:
+            sys.modules.pop(mod, None)
+
+        _purge_server_module()
+        with patch.dict(os.environ, env, clear=False), \
+             patch.dict(sys.modules, injected_modules):
+            import src.server
+            assert src.server.OIDC_ENABLED is True
+            mock_oidc_cls.assert_called_once()
+            call_kwargs = mock_oidc_cls.call_args.kwargs
+            assert call_kwargs["client_id"] == "test-client"
+            assert call_kwargs["base_url"] == "https://kari.example.com"
+            assert "openid" in call_kwargs["required_scopes"]

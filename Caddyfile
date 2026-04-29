@@ -1,6 +1,9 @@
 # Caddy handles Let's Encrypt certificates automatically
 kari.snowy-burbot.com {
-    @blocked not remote_ip 160.79.104.0/21
+    @blocked {
+        not remote_ip 160.79.104.0/21
+        not path /authorize* /auth/callback /consent* /.well-known/*
+    }
     respond @blocked 403
 
     reverse_proxy shark-no-kari:8000 {

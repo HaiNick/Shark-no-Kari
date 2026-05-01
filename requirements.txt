@@ -1,13 +1,13 @@
 fastmcp>=2.0
 py-key-value-aio>=0.4.0
 cryptography>=41.0.0
-scrapling[fetchers]>=0.4.3
-html2text>=2024.2.26
+scrapling[fetchers]>=0.4.7
+html2text>=2025.4.15
 uvicorn[standard]>=0.34.0
-starlette>=0.46.0
+starlette>=1.0.0
 youtube-transcript-api>=0.6.3
-requests[socks]>=2.32.0
+requests[socks]>=2.33.1
 
 # dev
-pytest>=8.0.0
+pytest>=9.0.3
 pytest-asyncio>=0.24.0

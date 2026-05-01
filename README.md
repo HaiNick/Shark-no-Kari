@@ -34,6 +34,11 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
   - [IP Allowlisting](#ip-allowlisting)
   - [DNS Rebinding Protection Workaround](#dns-rebinding-protection-workaround)
   - [Optional Bearer Token Auth](#optional-bearer-token-auth)
+- [OAuth (OIDC) Authentication](#oauth-oidc-authentication)
+  - [Auth Mode Comparison](#auth-mode-comparison)
+  - [Pocket ID Client Setup](#pocket-id-client-setup)
+  - [Enable OIDC in .env](#enable-oidc-in-env)
+  - [Verification](#verification)
 - [Architecture](#architecture)
   - [Tech Stack](#tech-stack)
   - [Project Structure](#project-structure)
@@ -202,6 +207,99 @@ MCP_API_KEY=$(openssl rand -hex 32)
 
 Every request must then include an `Authorization: Bearer <key>` header. Claude sends this automatically if you configure it in the connector's advanced settings.
 
+For a stronger alternative that gives you per-user login and consent, see [OAuth (OIDC) Authentication](#oauth-oidc-authentication) below.
+
+---
+
+## OAuth (OIDC) Authentication
+
+Shark-no-Kari supports optional OAuth 2.1 authentication federated to a self-hosted [Pocket ID](https://pocket-id.org) instance via OIDC. When enabled, Claude opens a browser tab the first time it connects and you log in through Pocket ID. The MCP server issues its own short-lived JWTs to Claude; Pocket ID is only involved during the browser-based login.
+
+### Auth Mode Comparison
+
+| Mode | How it works | When to use |
+|------|-------------|-------------|
+| **IP allowlist** (default) | Caddy blocks all non-Anthropic IPs. No token needed. | Simplest. Fine if you only use claude.ai. |
+| **Bearer token** (`MCP_API_KEY`) | Static secret in the `Authorization` header. | When you need a token-gated endpoint without OIDC. |
+| **OIDC** (`OIDC_ENABLED=true`) | OAuth 2.1 + Pocket ID browser login. Per-user consent, short-lived tokens. | Strongest. Recommended for multi-user or internet-facing deployments. |
+
+`OIDC_ENABLED` and `MCP_API_KEY` are mutually exclusive. The server raises a startup error if both are set.
+
+### Pocket ID Client Setup
+
+In your Pocket ID admin panel, create a new OIDC application:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `Shark-no-Kari` (or any label) |
+| **Redirect URI** | `https://kari.snowy-burbot.com/auth/callback` |
+| **Scopes** | `openid`, `profile`, `email` |
+| **PKCE** | Enabled (S256) |
+| **Public client** | Off (confidential client with a secret) |
+
+Copy the generated **Client ID** and **Client Secret** for the next step.
+
+### Enable OIDC in .env
+
+Generate the two key material values:
+
+```bash
+# JWT signing key (for fastmcp's own tokens issued to MCP clients):
+openssl rand -hex 32
+
+# Fernet encryption key (for the on-disk DCR registration store):
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Then set these variables in `.env`:
+
+```bash
+OIDC_ENABLED=true
+MCP_API_KEY=                          # must be empty when OIDC is on
+OIDC_CONFIG_URL=https://id.snowy-burbot.com/.well-known/openid-configuration
+OIDC_CLIENT_ID=<paste from Pocket ID>
+OIDC_CLIENT_SECRET=<paste from Pocket ID>
+OIDC_BASE_URL=https://kari.snowy-burbot.com
+JWT_SIGNING_KEY=<output of openssl command>
+STORAGE_ENCRYPTION_KEY=<output of python command>
+```
+
+Restart the stack: `docker compose up -d`
+
+On the first connection from Claude, it will open a browser tab. Log in with your Pocket ID account and click **Allow**. Subsequent connections reuse the cached token silently.
+
+### Verification
+
+After deploying with OIDC enabled, run [`scripts/verify-oidc.sh`](scripts/verify-oidc.sh):
+
+```bash
+bash scripts/verify-oidc.sh https://kari.snowy-burbot.com
+```
+
+Expected output shape:
+
+```
+==> Protected resource metadata
+{
+  "resource": "https://kari.snowy-burbot.com",
+  "authorization_servers": ["https://kari.snowy-burbot.com"],
+  ...
+}
+
+==> Authorization server metadata
+{
+  "issuer": "https://kari.snowy-burbot.com",
+  "authorization_endpoint": "https://kari.snowy-burbot.com/authorize",
+  "token_endpoint": "https://kari.snowy-burbot.com/token",
+  ...
+}
+
+==> Unauthenticated /mcp must 401 with WWW-Authenticate
+www-authenticate: Bearer realm="..."
+```
+
+If the third check produces no output, the server is not returning a `WWW-Authenticate` header, which means OIDC is not active.
+
 ---
 
 ## Architecture
@@ -210,11 +308,13 @@ Every request must then include an `Authorization: Bearer <key>` header. Claude 
 
 | Layer           | Technology                                                       | Why                                           |
 | --------------- | ---------------------------------------------------------------- | --------------------------------------------- |
-| **MCP Server**  | [FastMCP](https://github.com/modelcontextprotocol/python-sdk)    | Official Python MCP SDK, streamable HTTP      |
+| **MCP Server**  | [FastMCP](https://gofastmcp.com) (PrefectHQ)                    | MCP SDK with built-in OAuth 2.1 / OIDCProxy   |
 | **Scraping**    | [Scrapling](https://github.com/D4Vinci/Scrapling)               | Stealth headers + headless browser (Camoufox) |
 | **HTML→MD**     | [html2text](https://github.com/Alir3z4/html2text)               | Clean Markdown conversion                     |
 | **ASGI Server** | [uvicorn](https://www.uvicorn.org)                               | Fast async Python server                      |
-| **Reverse Proxy** | [Caddy](https://caddyserver.com)                              | Auto HTTPS, IP allowlisting                   |
+| **Reverse Proxy** | [Caddy](https://caddyserver.com)                              | Auto HTTPS, IP allowlisting, OAuth path pass-through |
+| **Auth (OIDC)** | OIDCProxy + [Pocket ID](https://pocket-id.org)                  | OAuth 2.1 with self-hosted OIDC provider      |
+| **OAuth store** | py-key-value-aio FileTreeStore + Fernet encryption              | Encrypted on-disk DCR registration persistence |
 | **Deployment**  | Docker + Docker Compose                                          | Single command setup                          |
 
 ### Project Structure
@@ -222,20 +322,21 @@ Every request must then include an `Authorization: Bearer <key>` header. Claude 
 ```
 Shark-no-Kari/
 ├── src/
-│   └── server.py            MCP server (FastMCP + Scrapling tools + auth middleware)
+│   └── server.py            MCP server (FastMCP + Scrapling tools + optional OIDC auth)
 ├── tests/
-│   └── test_server.py       pytest test suite for all tools
+│   └── test_server.py       pytest test suite for all tools + OIDC startup tests
 ├── scripts/
-│   └── setup-vps.sh         Bootstrap script for a fresh Ubuntu VPS
+│   ├── setup-vps.sh         Bootstrap script for a fresh Ubuntu VPS
+│   └── verify-oidc.sh       Smoke-test script for OIDC endpoints
 ├── .github/
 │   └── workflows/
 │       └── docker-publish.yml  CI: build & push Docker image to ghcr.io
-├── Caddyfile                 Reverse proxy config (auto HTTPS + IP allowlist)
-├── docker-compose.yml        Orchestrates MCP server + Caddy
+├── Caddyfile                 Reverse proxy config (auto HTTPS + IP allowlist + OAuth paths)
+├── docker-compose.yml        Orchestrates MCP server + Caddy + oauth_state volume
 ├── Dockerfile                Builds the MCP server image (Python 3.12 + browser deps)
 ├── pyproject.toml            pytest configuration
 ├── requirements.txt          Python dependencies
-├── .env.example              Environment variable template
+├── .env.example              Environment variable template (includes OIDC vars)
 ├── LICENSE                   MIT
 └── .gitignore
 ```
@@ -279,12 +380,19 @@ Shark-no-Kari/
 
 | Variable      | Default | Description                                                         |
 | ------------- | ------- | ------------------------------------------------------------------- |
-| `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist)  |
+| `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist). Cannot be set together with `OIDC_ENABLED=true`. |
 | `PROXY_URL`   | `socks5h://kari-nordlynx:1080` | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Defaults to the bundled `nordlynx-proxy` sidecar container |
 | `NORDVPN_TOKEN` | _(empty)_ | NordVPN access token from [Nord Account > Manual setup](https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/). Required for proxy fallback via `nordlynx-proxy` |
 | `NORDVPN_COUNTRY` | `Germany` | NordVPN server country used by `nordlynx-proxy` for the WireGuard tunnel |
 | `HOST`        | `0.0.0.0` | Server bind address                                               |
 | `PORT`        | `8000`    | Server port                                                       |
+| `OIDC_ENABLED` | `false` | Set to `true` to activate OAuth 2.1 via OIDC. All `OIDC_*` vars and `JWT_SIGNING_KEY`, `STORAGE_ENCRYPTION_KEY` are required when enabled. |
+| `OIDC_CONFIG_URL` | _(empty)_ | URL of the OIDC provider's discovery document (e.g. `https://id.example.com/.well-known/openid-configuration`) |
+| `OIDC_CLIENT_ID` | _(empty)_ | Client ID from your Pocket ID application |
+| `OIDC_CLIENT_SECRET` | _(empty)_ | Client secret from your Pocket ID application |
+| `OIDC_BASE_URL` | _(empty)_ | Public base URL of this server (e.g. `https://kari.snowy-burbot.com`). Used for redirect URIs. |
+| `JWT_SIGNING_KEY` | _(empty)_ | Secret for signing JWTs issued to MCP clients. Generate with `openssl rand -hex 32`. |
+| `STORAGE_ENCRYPTION_KEY` | _(empty)_ | Fernet key for encrypting the on-disk OAuth client store. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 
 ### Caddyfile
 

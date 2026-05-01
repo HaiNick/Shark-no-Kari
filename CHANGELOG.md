@@ -6,7 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
-## [Unreleased]
+## [1.4.0] - 2026-05-01
+
+### Added
+- Optional OAuth 2.1 authentication via OIDC, federated to a self-hosted Pocket ID instance.
+  Activated by setting `OIDC_ENABLED=true` in `.env`. Default is disabled; existing IP-allowlist
+  and bearer token modes are unchanged.
+- `OIDC_CONFIG_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_BASE_URL`, `JWT_SIGNING_KEY`,
+  and `STORAGE_ENCRYPTION_KEY` environment variables (all required when `OIDC_ENABLED=true`).
+- Encrypted on-disk OAuth client registration store: `py-key-value-aio` FileTreeStore wrapped
+  with Fernet encryption, mounted at `/app/oauth_state` via a named Docker volume. Survives
+  container restarts so Claude does not re-register on every deploy.
+- `scripts/verify-oidc.sh`: smoke-test script that checks the three OIDC metadata endpoints
+  and verifies that unauthenticated `/mcp` requests receive a `WWW-Authenticate` header.
+- README section "OAuth (OIDC) Authentication" documenting all three auth modes, Pocket ID
+  client setup, key generation commands, and verification steps.
+
+### Changed
+- Migrated from `mcp[cli]` (official Anthropic MCP SDK) to `fastmcp>=2.0` (PrefectHQ).
+  `fastmcp` is API-compatible for tools and HTTP transport, and adds built-in OIDCProxy support.
+  Key API changes: `streamable_http_app()` replaced by `http_app(stateless_http=True)`;
+  `stateless_http` and `json_response` are now kwargs on `http_app()`, not on the constructor.
+- Caddyfile updated: `/authorize*`, `/auth/callback`, `/consent*`, and `/.well-known/*` paths
+  are now reachable from outside the Anthropic IP range to support the browser-based OAuth flow.
 
 
 ## [1.3.0] - 2026-04-04

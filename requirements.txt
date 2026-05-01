@@ -1,4 +1,6 @@
-mcp[cli]>=1.9.0
+fastmcp>=2.0
+py-key-value-aio>=0.4.0
+cryptography>=41.0.0
 scrapling[fetchers]>=0.4.7
 html2text>=2025.4.15
 uvicorn[standard]>=0.34.0

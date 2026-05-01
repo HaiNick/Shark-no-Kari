@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
-## [Unreleased]
+## [1.4.0] - 2026-05-01
 
 ### Added
 - Optional OAuth 2.1 authentication via OIDC, federated to a self-hosted Pocket ID instance.

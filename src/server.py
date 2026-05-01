@@ -105,6 +105,7 @@ if OIDC_ENABLED:
         client_secret=_OIDC_CLIENT_SECRET or None,
         base_url=_OIDC_BASE_URL,
         jwt_signing_key=_JWT_SIGNING_KEY,
+        required_scopes=[],
         client_storage=_client_storage,
     )
     mcp = FastMCP(name="Shark-no-Kari", instructions=_INSTRUCTIONS, auth=_auth)

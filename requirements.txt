@@ -1,6 +1,6 @@
 fastmcp>=3.2.4
 py-key-value-aio>=0.4.4
-cryptography>=47.0.0
+cryptography>=48.0.0
 scrapling[fetchers]>=0.4.7
 html2text>=2025.4.15
 uvicorn[standard]>=0.46.0

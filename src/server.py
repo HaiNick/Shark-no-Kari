@@ -347,6 +347,135 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
     return f"Transcript for https://www.youtube.com/watch?v={video_id}:\n\n{result}"
 
 
+@mcp.tool()
+async def fetch_feed(
+    url: str,
+    cutoff: str,
+    skip_terms: list[str] = [],
+) -> str:
+    """
+    Fetch an RSS or Atom feed and return only items published after the cutoff.
+    Strips HTML from summaries, filters by skip_terms, returns compact JSON.
+    Use this instead of fetch_page for all RSS/Atom sources.
+
+    Args:
+        url: The RSS or Atom feed URL.
+        cutoff: ISO 8601 cutoff datetime. Items at or before this are excluded.
+                Example: "2026-05-18T11:05:59+02:00"
+        skip_terms: Items whose title or author contains any of these strings
+                    (case-insensitive) are skipped.
+                    Example: ["Sponsored", "Anzeige:", "Deals"]
+    """
+    import feedparser
+    import orjson
+    from datetime import datetime, timezone
+    from dateutil import parser as dtparser
+    from html.parser import HTMLParser
+    import re as _re
+
+    class _Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._parts: list[str] = []
+        def handle_data(self, d: str) -> None:
+            self._parts.append(d)
+        def text(self) -> str:
+            return _re.sub(r"\s+", " ", " ".join(self._parts)).strip()
+
+    def _strip_html(raw: str) -> str:
+        s = _Stripper()
+        try:
+            s.feed(raw or "")
+        except Exception:
+            pass
+        return s.text()
+
+    def _entry_dt(entry) -> datetime | None:
+        for attr in ("published_parsed", "updated_parsed"):
+            t = getattr(entry, attr, None)
+            if t:
+                return datetime(*t[:6], tzinfo=timezone.utc)
+        for attr in ("published", "updated"):
+            raw = getattr(entry, attr, None)
+            if raw:
+                try:
+                    return dtparser.parse(raw).astimezone(timezone.utc)
+                except Exception:
+                    pass
+        return None
+
+    try:
+        cutoff_dt = dtparser.parse(cutoff).astimezone(timezone.utc)
+    except Exception as e:
+        return f"Invalid cutoff: {e}"
+
+    def _sync_fetch(proxy=None):
+        from scrapling.fetchers import Fetcher
+        kwargs = dict(stealthy_headers=True, follow_redirects=True)
+        if proxy:
+            kwargs["proxy"] = proxy
+        return Fetcher.get(url, **kwargs)
+
+    logger.info(f"fetch_feed: {url} (cutoff={cutoff})")
+    try:
+        page = await asyncio.to_thread(_sync_fetch)
+        if page.status != 200:
+            raise Exception(f"HTTP {page.status}")
+        raw = page.html_content if hasattr(page, "html_content") else str(page.body)
+    except Exception as e:
+        if PROXY_URL:
+            logger.info(f"fetch_feed: direct failed ({e}), retrying via proxy")
+            try:
+                page = await asyncio.to_thread(_sync_fetch, PROXY_URL)
+                raw = page.html_content if hasattr(page, "html_content") else str(page.body)
+            except Exception as e2:
+                return f"Feed fetch failed (via proxy): {e2}"
+        else:
+            return f"Feed fetch failed: {e}"
+
+    feed = await asyncio.to_thread(feedparser.parse, raw)
+
+    skip_lower = [t.lower() for t in skip_terms]
+    items = []
+
+    for entry in feed.entries:
+        entry_dt = _entry_dt(entry)
+        if entry_dt is None or entry_dt <= cutoff_dt:
+            continue
+
+        title = entry.get("title", "")
+        author = (
+            entry.get("author")
+            or entry.get("dc_creator")
+            or ""
+        )
+        if any(term in (title + " " + author).lower() for term in skip_lower):
+            continue
+
+        raw_summary = (
+            entry.get("summary", "")
+            or (entry.get("content", [{}])[0].get("value", "") if entry.get("content") else "")
+        )
+        summary = _strip_html(raw_summary)
+        if len(summary) > 400:
+            summary = summary[:397] + "..."
+
+        items.append({
+            "title": title,
+            "link": entry.get("link", ""),
+            "date": entry_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "author": author,
+            "summary": summary,
+        })
+
+    items.sort(key=lambda x: x["date"], reverse=True)
+
+    return orjson.dumps(
+        {"feed": feed.feed.get("title", ""), "count": len(items), "items": items},
+        option=orjson.OPT_INDENT_2,
+    ).decode()
+
+
 # --------------------------------------------------------------------------- #
 # Auth middleware (optional bearer token check)
 # --------------------------------------------------------------------------- #

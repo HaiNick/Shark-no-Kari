@@ -80,13 +80,17 @@ _INSTRUCTIONS = (
     "Slower (5-15s) as it launches a real headless browser.\n"
     "- extract_elements: Use when you need structured data from a page. "
     "Pass a dict of field names to CSS selectors and get JSON back. "
-    "Set use_stealth=True for bot-protected sites.\n\n"
+    "Set use_stealth=True for bot-protected sites.\n"
+    "- fetch_feed: Use this for ALL RSS/Atom feed URLs instead of fetch_page. "
+    "Parses feed entries, filters by cutoff datetime and optional skip_terms, "
+    "strips HTML from summaries, returns compact JSON.\n"
+    "- get_youtube_transcript: Fetch YouTube video transcripts/captions by URL.\n\n"
     "Tips:\n"
     "- Use css_selector on fetch_page/stealth_fetch_page for simple single-selector extraction\n"
     "- Use extract_elements when you need multiple different pieces of data from one page\n"
     "- to_markdown=True (default) converts HTML to readable text\n"
     "- Always try fetch_page before stealth_fetch_page\n"
-    "- get_youtube_transcript: Fetch YouTube video transcripts/captions by URL."
+    "- Always use fetch_feed (not fetch_page) for RSS/Atom feed URLs"
 )
 
 if OIDC_ENABLED:

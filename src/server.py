@@ -425,13 +425,23 @@ async def fetch_feed(
         page = await asyncio.to_thread(_sync_fetch)
         if page.status != 200:
             raise Exception(f"HTTP {page.status}")
-        raw = page.html_content if hasattr(page, "html_content") else str(page.body)
+        if hasattr(page, "body") and page.body:
+            raw = page.body if isinstance(page.body, str) else page.body.decode("utf-8", errors="replace")
+        elif hasattr(page, "html_content"):
+            raw = page.html_content
+        else:
+            raw = str(page)
     except Exception as e:
         if PROXY_URL:
             logger.info(f"fetch_feed: direct failed ({e}), retrying via proxy")
             try:
                 page = await asyncio.to_thread(_sync_fetch, PROXY_URL)
-                raw = page.html_content if hasattr(page, "html_content") else str(page.body)
+                if hasattr(page, "body") and page.body:
+                    raw = page.body if isinstance(page.body, str) else page.body.decode("utf-8", errors="replace")
+                elif hasattr(page, "html_content"):
+                    raw = page.html_content
+                else:
+                    raw = str(page)
             except Exception as e2:
                 return f"Feed fetch failed (via proxy): {e2}"
         else:

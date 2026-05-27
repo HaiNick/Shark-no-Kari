@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [1.5.0] - 2026-05-27
+
+### Added
+- `fetch_feed` tool — fetch RSS/Atom feeds and return only items published after a cutoff datetime.
+  Strips HTML from summaries, filters by optional `skip_terms`, returns compact JSON sorted newest-first.
+  Use this instead of `fetch_page` for all RSS/Atom feed URLs.
+- `feedparser` and `python-dateutil` dependencies.
+
+---
+
 ## [1.4.0] - 2026-05-01
 
 ### Added

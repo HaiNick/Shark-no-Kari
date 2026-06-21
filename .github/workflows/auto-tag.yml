@@ -16,7 +16,7 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'chore: bump version to')"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # Use RELEASE_PAT if available (needed to push to a protected main),

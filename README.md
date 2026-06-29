@@ -4,7 +4,7 @@
 
 **Remote MCP server for web scraping with anti-bot evasion**
 
-Stealth HTTP fetching · Headless browser · Cloudflare bypass · CSS selectors · YouTube transcripts · Markdown conversion
+Stealth HTTP fetching · Headless browser · CloakBrowser CDP · Cloudflare bypass · CSS selectors · RSS/Atom feeds · YouTube transcripts · Markdown conversion
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://python.org)
@@ -43,6 +43,7 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
   - [Tech Stack](#tech-stack)
   - [Project Structure](#project-structure)
   - [How It Works](#how-it-works)
+- [CloakBrowser Stealth Engine (Optional)](#cloakbrowser-stealth-engine-optional)
 - [Configuration](#configuration)
 - [Local Development](#local-development)
 - [Docker](#docker)
@@ -58,8 +59,9 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
 | Tool                  | Description                                                                  | Speed    |
 | --------------------- | ---------------------------------------------------------------------------- | -------- |
 | **`fetch_page`**      | Fast HTTP request with stealth headers. Works for GitHub, docs, static pages | ~1-2s    |
-| **`stealth_fetch_page`** | Real headless browser with anti-bot evasion. Bypasses Cloudflare, renders JS | ~5-15s   |
+| **`stealth_fetch_page`** | Real headless browser with anti-bot evasion. Bypasses Cloudflare, renders JS. Uses CloakBrowser CDP when `COMPOSE_PROFILES=cloakbrowser`, Camoufox otherwise | ~5-15s |
 | **`extract_elements`** | Fetch a page and extract multiple elements via CSS selectors as structured JSON | ~1-2s |
+| **`fetch_feed`**      | Fetch an RSS/Atom feed, filter by cutoff date and skip terms, return compact JSON | ~1-2s |
 | **`get_youtube_transcript`** | Fetch YouTube video transcripts/captions with language fallback | ~1-3s |
 
 `fetch_page` and `stealth_fetch_page` support:
@@ -67,6 +69,13 @@ _Claude's built-in `web_fetch` fails on GitHub blob URLs, Cloudflare-protected s
 - **`css_selector`** — extract specific elements instead of the full page
 - **`to_markdown`** — convert HTML to readable Markdown (default: `true`)
 - Automatic truncation at 80,000 characters
+
+`fetch_feed` supports:
+
+- RSS 2.0 and Atom feeds
+- ISO 8601 cutoff datetime — only items newer than the cutoff are returned
+- `skip_terms` list to filter out sponsored posts or unwanted authors (case-insensitive)
+- HTML stripping from summaries, truncated to 400 characters per item
 
 `get_youtube_transcript` supports:
 
@@ -310,6 +319,7 @@ If the third check produces no output, the server is not returning a `WWW-Authen
 | --------------- | ---------------------------------------------------------------- | --------------------------------------------- |
 | **MCP Server**  | [FastMCP](https://gofastmcp.com) (PrefectHQ)                    | MCP SDK with built-in OAuth 2.1 / OIDCProxy   |
 | **Scraping**    | [Scrapling](https://github.com/D4Vinci/Scrapling)               | Stealth headers + headless browser (Camoufox) |
+| **Stealth engine (opt.)** | [CloakBrowser](https://cloakbrowser.com) (`cloakhq/cloakbrowser`) | Chromium CDP backend for `stealth_fetch_page`; stronger Cloudflare bypass |
 | **HTML→MD**     | [html2text](https://github.com/Alir3z4/html2text)               | Clean Markdown conversion                     |
 | **ASGI Server** | [uvicorn](https://www.uvicorn.org)                               | Fast async Python server                      |
 | **Reverse Proxy** | [Caddy](https://caddyserver.com)                              | Auto HTTPS, IP allowlisting, OAuth path pass-through |
@@ -358,8 +368,9 @@ Shark-no-Kari/
               │  shark-no-kari   │  FastMCP server (uvicorn :8000)
               │                  │
               │  fetch_page()    │  → Scrapling Fetcher (stealth HTTP)
-              │  stealth_fetch() │  → Scrapling StealthyFetcher (headless browser)
+              │  stealth_fetch() │  → Camoufox (default) or CloakBrowser CDP (optional)
               │  extract_elems() │  → Multi-selector structured extraction
+              │  fetch_feed()    │  → Scrapling Fetcher + feedparser (RSS/Atom)
               │  yt_transcript() │  → YouTube transcript API
               │                  │
               │  html2text       │  → Markdown conversion + truncation
@@ -374,6 +385,53 @@ Shark-no-Kari/
 
 ---
 
+## CloakBrowser Stealth Engine (Optional)
+
+`stealth_fetch_page` supports two interchangeable backends:
+
+| Mode | Engine | When to use |
+|------|--------|-------------|
+| **Camoufox** (default) | Scrapling's `StealthyFetcher` — headless Firefox | Works out of the box, no extra services |
+| **CloakBrowser** | Dedicated Chromium instance reached via Chrome DevTools Protocol | Stronger bypass for sites that detect Camoufox |
+
+### Enabling CloakBrowser
+
+Set `COMPOSE_PROFILES=cloakbrowser` before starting the stack:
+
+```bash
+# One-off
+COMPOSE_PROFILES=cloakbrowser docker compose up -d
+
+# Or add to .env
+COMPOSE_PROFILES=cloakbrowser
+```
+
+This starts the `kari-cloakbrowser` sidecar. Shark-no-Kari automatically detects the profile via `COMPOSE_PROFILES` and routes all `stealth_fetch_page` calls through CloakBrowser's CDP endpoint. When the profile is unset, the `kari-cloakbrowser` container never starts and Camoufox is used transparently — no caller-side changes needed.
+
+### How It Works
+
+```
+stealth_fetch_page()
+       │
+       ├─ COMPOSE_PROFILES=cloakbrowser
+       │       │
+       │       ▼
+       │  GET /json/version (timeout=5s)
+       │  kari-cloakbrowser:9222
+       │       │
+       │       ▼
+       │  StealthyFetcher.async_fetch(cdp_url=ws_url, block_ads=True)
+       │  → Chromium via CloakBrowser + NordLynx SOCKS5 proxy
+       │
+       └─ (default)
+               │
+               ▼
+         StealthyFetcher.fetch(block_ads=True)
+         → Camoufox headless Firefox
+```
+
+---
+
 ## Configuration
 
 ### Environment Variables
@@ -381,6 +439,8 @@ Shark-no-Kari/
 | Variable      | Default | Description                                                         |
 | ------------- | ------- | ------------------------------------------------------------------- |
 | `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist). Cannot be set together with `OIDC_ENABLED=true`. |
+| `COMPOSE_PROFILES` | _(empty)_ | Set to `cloakbrowser` to start the CloakBrowser sidecar and enable the CDP stealth backend in `stealth_fetch_page`. |
+| `CLOAKBROWSER_CDP_URL` | `http://kari-cloakbrowser:9222` | CDP base URL of the CloakBrowser container. Override if running CloakBrowser on a different host or port. |
 | `PROXY_URL`   | `socks5h://kari-nordlynx:1080` | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Defaults to the bundled `nordlynx-proxy` sidecar container |
 | `NORDVPN_TOKEN` | _(empty)_ | NordVPN access token from [Nord Account > Manual setup](https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/). Required for proxy fallback via `nordlynx-proxy` |
 | `NORDVPN_COUNTRY` | `Germany` | NordVPN server country used by `nordlynx-proxy` for the WireGuard tunnel |
@@ -420,7 +480,7 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-scrapling install    # Downloads browser binaries (Camoufox, Playwright)
+scrapling install --force    # Downloads/refreshes browser binaries (Camoufox, Playwright)
 
 # Run the server (no auth for local dev)
 python src/server.py
@@ -453,16 +513,18 @@ Images are built automatically by CI and pushed to `ghcr.io/hainick/shark-no-kar
 | ---------------- | ------------------ | --------- | -------------------------------- |
 | `shark-no-kari`  | `ghcr.io/hainick/shark-no-kari:latest` | 8000 (internal) | MCP server |
 | `nordlynx-proxy` | `edgd1er/nordlynx-proxy:latest` | 1080, 8888 (internal) | NordVPN WireGuard tunnel + local SOCKS5/HTTP proxy |
+| `kari-cloakbrowser` | `cloakhq/cloakbrowser` | 9222 (internal, `kari-internal` net) | Optional Chromium CDP stealth engine — only starts when `COMPOSE_PROFILES=cloakbrowser` |
 | `caddy`          | `caddy:2-alpine`   | 80, 443   | Reverse proxy, auto HTTPS, ACL   |
 
 ### Dockerfile
 
 Multi-step build:
 
-1. Install system libraries required by headless browsers (NSS, GTK, etc.)
-2. Install Python dependencies from `requirements.txt`
-3. Run `scrapling install` to download browser binaries (Camoufox, Playwright)
-4. Copy `src/` and start with `python src/server.py`
+1. Install system libraries required by headless browsers (NSS, GTK, Unicode/CJK fonts, etc.)
+2. Install Python dependencies from `requirements.txt` (includes `scrapling>=0.4.9` and `cloakbrowser`)
+3. Run `scrapling install --force` to download/refresh browser binaries (Camoufox, Playwright)
+4. Run `python -m cloakbrowser install` to pre-download the CloakBrowser binary
+5. Copy `src/` and start with `python src/server.py`
 
 The container uses `shm_size: 512mb` for headless browser shared memory.
 
@@ -498,7 +560,7 @@ The test suite covers all four tools with mocked external calls (no network requ
 
 ### Build fails downloading browser binaries
 
-The `scrapling install` step downloads ~200 MB of browser binaries. If it times out, retry:
+The `scrapling install --force` and `python -m cloakbrowser install` steps download browser binaries at build time. If either times out, retry:
 
 ```bash
 docker compose build --no-cache
@@ -552,7 +614,8 @@ Use `socks5h://` (not `socks5://`) so the proxy handles DNS resolution. If you d
 
 ## Acknowledgements
 
-- [Scrapling](https://github.com/D4Vinci/Scrapling) — the scraping engine that powers both tools (stealth HTTP + headless browser via Camoufox)
+- [Scrapling](https://github.com/D4Vinci/Scrapling) — the scraping engine powering all fetch tools (stealth HTTP + headless browser via Camoufox)
+- [CloakBrowser](https://cloakbrowser.com) (`cloakhq/cloakbrowser`) — optional Chromium CDP stealth backend for `stealth_fetch_page`
 - [FastMCP](https://github.com/modelcontextprotocol/python-sdk) — official Python MCP SDK that makes building MCP servers painless
 - [Caddy](https://caddyserver.com) — automatic HTTPS and dead-simple reverse proxy config
 - [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion

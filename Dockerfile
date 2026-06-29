@@ -1,6 +1,6 @@
 FROM python:3.14-slim
 
-# System deps for Scrapling's browser fetchers (Camoufox/Playwright)
+# System deps for browser fetchers (Scrapling/Camoufox, CloakBrowser/Chromium)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl gnupg ca-certificates \
     # Browser runtime deps
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 \
     libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
     libwayland-client0 fonts-noto-color-emoji \
+    fonts-freefont-ttf fonts-unifont fonts-ipafont-gothic fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -16,8 +17,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Scrapling's browser dependencies (Camoufox, Playwright, etc.)
-RUN scrapling install
+# Refresh Scrapling browser fingerprints
+RUN scrapling install --force
+
+# Pre-download CloakBrowser binary at build time
+RUN python -m cloakbrowser install
 
 COPY pyproject.toml .
 COPY src/ ./src/

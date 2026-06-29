@@ -27,6 +27,8 @@ logger = logging.getLogger("shark-no-kari")
 API_KEY = os.getenv("MCP_API_KEY", "")
 PROXY_URL = os.getenv("PROXY_URL", "")
 OIDC_ENABLED = os.getenv("OIDC_ENABLED", "").lower() in {"1", "true", "yes"}
+CLOAKBROWSER_ENABLED = "cloakbrowser" in os.getenv("COMPOSE_PROFILES", "")
+CLOAKBROWSER_CDP_URL = os.getenv("CLOAKBROWSER_CDP_URL", "http://kari-cloakbrowser:9222")
 
 # socks5:// resolves DNS locally; socks5h:// delegates DNS to the proxy.
 # VPN proxies (NordVPN, etc.) expect proxy-side resolution, so normalize.
@@ -172,7 +174,7 @@ async def fetch_page(
     """
     def _sync_fetch(proxy=None):
         from scrapling.fetchers import Fetcher
-        kwargs = dict(stealthy_headers=True, follow_redirects=True)
+        kwargs = dict(stealthy_headers=True, follow_redirects="safe")
         if proxy:
             kwargs["proxy"] = proxy
         return Fetcher.get(url, **kwargs)
@@ -215,20 +217,32 @@ async def stealth_fetch_page(
         to_markdown: Convert HTML to readable Markdown (default True).
         wait_seconds: Seconds to wait for JS to render (default 3).
     """
-    def _sync_fetch():
-        from scrapling.fetchers import StealthyFetcher
-        return StealthyFetcher.fetch(
-            url,
-            headless=True,
-            network_idle=True,
-            wait_after_idle=wait_seconds,
-        )
-
     logger.info(f"stealth_fetch_page: {url}")
-    try:
-        page = await asyncio.to_thread(_sync_fetch)
-    except Exception as e:
-        return f"Stealth fetch failed: {e}"
+    if CLOAKBROWSER_ENABLED:
+        try:
+            import json
+            import urllib.request
+            with urllib.request.urlopen(f"{CLOAKBROWSER_CDP_URL}/json/version", timeout=5) as resp:
+                version_info = json.loads(resp.read())
+            ws_url = version_info["webSocketDebuggerUrl"]
+            from scrapling.fetchers import StealthyFetcher
+            page = await StealthyFetcher.async_fetch(url, cdp_url=ws_url, block_ads=True, network_idle=True)
+        except Exception as e:
+            return f"CloakBrowser stealth fetch failed: {e}"
+    else:
+        def _sync_fetch():
+            from scrapling.fetchers import StealthyFetcher
+            return StealthyFetcher.fetch(
+                url,
+                headless=True,
+                network_idle=True,
+                block_ads=True,
+                wait_after_idle=wait_seconds,
+            )
+        try:
+            page = await asyncio.to_thread(_sync_fetch)
+        except Exception as e:
+            return f"Stealth fetch failed: {e}"
 
     if page.status != 200:
         return f"HTTP {page.status} for {url}"
@@ -259,7 +273,7 @@ async def extract_elements(
             return StealthyFetcher.fetch(url, headless=True, network_idle=True)
         else:
             from scrapling.fetchers import Fetcher
-            kwargs = dict(stealthy_headers=True, follow_redirects=True)
+            kwargs = dict(stealthy_headers=True, follow_redirects="safe")
             if proxy:
                 kwargs["proxy"] = proxy
             return Fetcher.get(url, **kwargs)
@@ -526,6 +540,10 @@ if __name__ == "__main__":
     logger.info(f"Starting Shark-no-Kari v{__version__} on {host}:{port}")
     if PROXY_URL:
         logger.info("SOCKS5 proxy fallback is ENABLED")
+    if CLOAKBROWSER_ENABLED:
+        logger.info("CloakBrowser stealth engine ENABLED (CDP: %s)", CLOAKBROWSER_CDP_URL)
+    else:
+        logger.info("CloakBrowser stealth engine DISABLED (using Camoufox fallback)")
     if OIDC_ENABLED:
         logger.info("OIDC authentication is ENABLED (Pocket ID)")
     elif API_KEY:

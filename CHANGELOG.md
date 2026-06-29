@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.0.0] - 2026-06-29
+
+### Added
+- **CloakBrowser stealth engine** — optional Chromium CDP backend for `stealth_fetch_page`.
+  Enable by setting `COMPOSE_PROFILES=cloakbrowser`; the `kari-cloakbrowser` sidecar starts
+  automatically and `stealth_fetch_page` routes through it via Chrome DevTools Protocol.
+  When the profile is unset the existing Camoufox/`StealthyFetcher` path is used unchanged.
+- `kari-cloakbrowser` Docker Compose service (`cloakhq/cloakbrowser` image, profile-gated).
+  Isolated on a dedicated `kari-internal` bridge network; NordLynx proxy wired in via
+  `cloakserve --proxy-server=socks5h://kari-nordlynx:1080`.
+- `COMPOSE_PROFILES` and `CLOAKBROWSER_CDP_URL` environment variables.
+- `cloakbrowser` Python package to `requirements.txt`.
+- Four Unicode/CJK font packages to Dockerfile apt layer
+  (`fonts-freefont-ttf`, `fonts-unifont`, `fonts-ipafont-gothic`, `fonts-wqy-zenhei`).
+
+### Changed
+- `stealth_fetch_page` CloakBrowser path: fetches WebSocket URL from `/json/version`
+  (5 s timeout) and calls `StealthyFetcher.async_fetch(cdp_url=ws_url, block_ads=True, network_idle=True)`.
+- `stealth_fetch_page` Camoufox fallback path: `block_ads=True` added.
+- `fetch_page` and `extract_elements`: `follow_redirects=True` → `follow_redirects="safe"`.
+- Dockerfile browser install: `scrapling install` → `scrapling install --force`;
+  added `python -m cloakbrowser install` build step.
+- Bumped `scrapling[fetchers]` from `>=0.4.7` to `>=0.4.9`.
+- Version bumped to `2.0.0`.
+
+---
+
 ## [1.5.0] - 2026-05-27
 
 ### Added

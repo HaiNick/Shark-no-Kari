@@ -441,6 +441,7 @@ stealth_fetch_page()
 | `MCP_API_KEY` | _(empty)_ | Bearer token for auth. Empty = disabled (use Caddy IP allowlist). Cannot be set together with `OIDC_ENABLED=true`. |
 | `COMPOSE_PROFILES` | _(empty)_ | Set to `cloakbrowser` to start the CloakBrowser sidecar and enable the CDP stealth backend in `stealth_fetch_page`. |
 | `CLOAKBROWSER_CDP_URL` | `http://kari-cloakbrowser:9222` | CDP base URL of the CloakBrowser container. Override if running CloakBrowser on a different host or port. |
+| `BGUTIL_POT_URL` | `http://kari-bgutil-pot:4416` | Base URL of the `bgutil-ytdlp-pot-provider` sidecar, used by `get_youtube_transcript` to generate PO tokens for YouTube. |
 | `PROXY_URL`   | `socks5h://kari-nordlynx:1080` | SOCKS5 proxy fallback — retries via proxy when direct requests fail. Defaults to the bundled `nordlynx-proxy` sidecar container |
 | `NORDVPN_TOKEN` | _(empty)_ | NordVPN access token from [Nord Account > Manual setup](https://my.nordaccount.com/dashboard/nordvpn/manual-configuration/). Required for proxy fallback via `nordlynx-proxy` |
 | `NORDVPN_COUNTRY` | `Germany` | NordVPN server country used by `nordlynx-proxy` for the WireGuard tunnel |
@@ -514,6 +515,7 @@ Images are built automatically by CI and pushed to `ghcr.io/hainick/shark-no-kar
 | `shark-no-kari`  | `ghcr.io/hainick/shark-no-kari:latest` | 8000 (internal) | MCP server |
 | `nordlynx-proxy` | `edgd1er/nordlynx-proxy:latest` | 1080, 8888 (internal) | NordVPN WireGuard tunnel + local SOCKS5/HTTP proxy |
 | `kari-cloakbrowser` | `cloakhq/cloakbrowser` | 9222 (internal, `kari-internal` net) | Optional Chromium CDP stealth engine — only starts when `COMPOSE_PROFILES=cloakbrowser` |
+| `kari-bgutil-pot` | `brainicism/bgutil-ytdlp-pot-provider` | 4416 (internal, `kari-internal` net) | Generates PO tokens so `yt-dlp` passes YouTube's bot check for `get_youtube_transcript` |
 | `caddy`          | `caddy:2-alpine`   | 80, 443   | Reverse proxy, auto HTTPS, ACL   |
 
 ### Dockerfile
@@ -621,6 +623,7 @@ Use `socks5h://` (not `socks5://`) so the proxy handles DNS resolution. If you d
 - [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion
 - [uvicorn](https://www.uvicorn.org) — fast ASGI server
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) — YouTube transcript/caption fetching
+- [bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) — generates PO tokens so `yt-dlp` passes YouTube's bot check
 - [nordlynx-proxy](https://github.com/edgd1er/nordlynx-proxy) — NordVPN WireGuard tunnel in Docker with local SOCKS5/HTTP proxy
 
 ---

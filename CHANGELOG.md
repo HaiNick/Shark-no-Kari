@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ## [2.1.0] - 2026-07-06
 
+### Added
+- `kari-bgutil-pot` Docker Compose sidecar (`brainicism/bgutil-ytdlp-pot-provider`) —
+  generates PO tokens over HTTP so `yt-dlp` passes YouTube's bot check for
+  `get_youtube_transcript`. Wired in via `extractor_args` on the `youtubepot-bgutilhttp`
+  extractor, base URL configurable via `BGUTIL_POT_URL`.
+- `bgutil-ytdlp-pot-provider` Python plugin dependency (talks to the sidecar container).
+
 ### Changed
 - `get_youtube_transcript` now uses `yt-dlp` instead of `youtube_transcript_api` for
   fetching captions. `youtube_transcript_api` was getting blocked by YouTube even through

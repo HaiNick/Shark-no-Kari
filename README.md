@@ -371,7 +371,7 @@ Shark-no-Kari/
               │  stealth_fetch() │  → Camoufox (default) or CloakBrowser CDP (optional)
               │  extract_elems() │  → Multi-selector structured extraction
               │  fetch_feed()    │  → Scrapling Fetcher + feedparser (RSS/Atom)
-              │  yt_transcript() │  → YouTube transcript API
+              │  yt_transcript() │  → yt-dlp (subtitle/caption extraction)
               │                  │
               │  html2text       │  → Markdown conversion + truncation
               └────────┬─────────┘
@@ -620,7 +620,7 @@ Use `socks5h://` (not `socks5://`) so the proxy handles DNS resolution. If you d
 - [Caddy](https://caddyserver.com) — automatic HTTPS and dead-simple reverse proxy config
 - [html2text](https://github.com/Alir3z4/html2text) — clean HTML-to-Markdown conversion
 - [uvicorn](https://www.uvicorn.org) — fast ASGI server
-- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) — YouTube transcript/caption fetching
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — YouTube transcript/caption fetching
 - [nordlynx-proxy](https://github.com/edgd1er/nordlynx-proxy) — NordVPN WireGuard tunnel in Docker with local SOCKS5/HTTP proxy
 
 ---

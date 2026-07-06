@@ -3,13 +3,10 @@
 import json
 import os
 import sys
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
-# Force the youtube_transcript_api imports to be resolvable at module level in server
-import youtube_transcript_api
 from src.server import get_youtube_transcript, fetch_page, extract_elements
 
 
@@ -17,10 +14,27 @@ from src.server import get_youtube_transcript, fetch_page, extract_elements
 # Helpers
 # --------------------------------------------------------------------------- #
 
-def _make_entry(start, text):
-    """Create a fake transcript entry."""
-    e = SimpleNamespace(start=start, text=text)
-    return e
+def _make_vtt(*lines):
+    """Build a minimal WEBVTT payload from a list of caption lines."""
+    body = "WEBVTT\n\n"
+    for i, line in enumerate(lines):
+        start = f"00:00:{i:02d}.000"
+        end = f"00:00:{i + 1:02d}.000"
+        body += f"{i + 1}\n{start} --> {end}\n{line}\n\n"
+    return body
+
+
+def _make_ydl(subtitles=None, automatic_captions=None):
+    """Create a fake yt_dlp.YoutubeDL context manager returning the given info dict."""
+    info = {
+        "subtitles": subtitles or {},
+        "automatic_captions": automatic_captions or {},
+    }
+    instance = MagicMock()
+    instance.extract_info.return_value = info
+    instance.__enter__.return_value = instance
+    instance.__exit__.return_value = False
+    return instance
 
 
 def _make_page(status, html="<h1>Hello</h1>", body=None):
@@ -39,84 +53,103 @@ def _make_page(status, html="<h1>Hello</h1>", body=None):
 class TestGetYoutubeTranscript:
 
     async def test_transcript_success(self):
-        entries = [_make_entry(0, "Hello"), _make_entry(5, "world"), _make_entry(10, "!")]
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            MockApi.return_value.fetch.return_value = entries
+        vtt = _make_vtt("Hello", "world", "!")
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
         assert "abc12345678" in result
-        assert "[0s] Hello" in result
-        assert "[5s] world" in result
-        assert "[10s] !" in result
+        assert "Hello" in result
+        assert "world" in result
+        assert "!" in result
 
     async def test_transcript_short_url(self):
-        entries = [_make_entry(0, "Hi")]
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            MockApi.return_value.fetch.return_value = entries
+        vtt = _make_vtt("Hi")
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://youtu.be/XyZ_1234567")
         assert "XyZ_1234567" in result
 
     async def test_transcript_shorts_url(self):
-        entries = [_make_entry(0, "Short")]
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            MockApi.return_value.fetch.return_value = entries
+        vtt = _make_vtt("Short")
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://www.youtube.com/shorts/SHORT123456")
         assert "SHORT123456" in result
 
     async def test_transcript_lang_fallback(self):
-        from youtube_transcript_api._errors import NoTranscriptFound
+        vtt = _make_vtt("Bonjour")
+        ydl = _make_ydl(subtitles={"fr": [{"ext": "vtt", "url": "https://example.com/fr.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
 
-        entries = [_make_entry(0, "Bonjour")]
-        fake_transcript = MagicMock()
-        fake_transcript.fetch.return_value = entries
-
-        fake_list = MagicMock()
-        fake_list._manually_created_transcripts = {"fr": True}
-        fake_list._generated_transcripts = {}
-        fake_list.find_transcript.return_value = fake_transcript
-
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            inst = MockApi.return_value
-            inst.fetch.side_effect = NoTranscriptFound("abc12345678", ["en"], None)
-            inst.list.return_value = fake_list
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
 
         assert "Bonjour" in result
-        inst.list.assert_called_once_with("abc12345678")
 
-    async def test_transcript_disabled(self):
-        from youtube_transcript_api._errors import TranscriptsDisabled
+    async def test_transcript_auto_caption_fallback(self):
+        vtt = _make_vtt("Auto generated")
+        ydl = _make_ydl(automatic_captions={"en": [{"ext": "vtt", "url": "https://example.com/en-auto.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
 
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            MockApi.return_value.fetch.side_effect = TranscriptsDisabled("abc12345678")
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
-        assert "disabled" in result.lower()
+
+        assert "Auto generated" in result
+
+    async def test_transcript_no_captions(self):
+        ydl = _make_ydl()
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl):
+            result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
+        assert "Failed to fetch transcript" in result
 
     async def test_transcript_invalid_url(self):
         result = await get_youtube_transcript("https://example.com/not-a-video")
         assert "Failed" in result
 
     async def test_transcript_truncation(self):
-        entries = [_make_entry(i, "A" * 1000) for i in range(200)]
-        with patch("youtube_transcript_api.YouTubeTranscriptApi") as MockApi:
-            MockApi.return_value.fetch.return_value = entries
+        vtt = _make_vtt(*[f"line{i} " + "A" * 1000 for i in range(200)])
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl), \
+             patch("requests.get", return_value=resp):
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
         assert result.endswith("[... truncated ...]")
 
     async def test_transcript_proxy_fallback(self):
-        entries = [_make_entry(0, "via proxy")]
+        vtt = _make_vtt("via proxy")
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
         call_count = 0
 
-        def make_api(*args, **kwargs):
+        def make_ydl(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            inst = MagicMock()
             if call_count == 1:
-                inst.fetch.side_effect = Exception("IP blocked by YouTube")
-            else:
-                inst.fetch.return_value = entries
-            return inst
+                raise Exception("IP blocked by YouTube")
+            return ydl
 
-        with patch("youtube_transcript_api.YouTubeTranscriptApi", side_effect=make_api), \
+        with patch("yt_dlp.YoutubeDL", side_effect=make_ydl), \
+             patch("requests.get", return_value=resp), \
              patch("src.server.PROXY_URL", "socks5://proxy:1080"):
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
         assert "via proxy" in result

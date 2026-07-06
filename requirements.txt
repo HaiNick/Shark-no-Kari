@@ -6,7 +6,7 @@ cloakbrowser
 html2text>=2025.4.15
 uvicorn[standard]>=0.46.0
 starlette>=1.0.0
-youtube-transcript-api>=1.2.4
+yt-dlp>=2026.7.4
 requests[socks]>=2.33.1
 feedparser
 python-dateutil

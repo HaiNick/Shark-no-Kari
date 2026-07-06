@@ -2,7 +2,7 @@ FROM python:3.14-slim
 
 # System deps for browser fetchers (Scrapling/Camoufox, CloakBrowser/Chromium)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget curl gnupg ca-certificates \
+    wget curl gnupg ca-certificates unzip \
     # Browser runtime deps
     libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
     libcups2 libdrm2 libdbus-1-3 libxkbcommon0 \
@@ -11,6 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwayland-client0 fonts-noto-color-emoji \
     fonts-freefont-ttf fonts-unifont fonts-ipafont-gothic fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
+
+# JS runtime yt-dlp needs to solve YouTube's signature/cipher challenge for the
+# "web" player client (the client PO tokens actually apply to). Without it,
+# yt-dlp silently falls back to non-JS clients (e.g. android_vr), which don't
+# use PO tokens and increasingly hit their own LOGIN_REQUIRED wall.
+RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y \
+    && mv /root/.deno/bin/deno /usr/local/bin/deno
 
 WORKDIR /app
 

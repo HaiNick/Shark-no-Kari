@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.6] - 2026-07-06
+
+### Fixed
+- `get_youtube_transcript`: the `kari-bgutil-pot` PO token provider added in 2.1.5 was
+  never actually being invoked. `yt-dlp` was falling back to the `android_vr` player
+  client (no JS runtime available in the container), and only the `web` client uses PO
+  tokens — `android_vr` doesn't request one, and is increasingly hitting its own
+  `LOGIN_REQUIRED` wall independently.
+- Installed `deno` in the Docker image so `yt-dlp` can solve YouTube's signature/cipher
+  challenge for the `web` client.
+- Forced `player_client: ["web"]` via `extractor_args` so `yt-dlp` actually requests the
+  `web` client (and therefore a PO token from `kari-bgutil-pot`) instead of silently
+  falling back to a non-JS client.
+
+---
+
 ## [2.1.5] - 2026-07-06
 
 ### Added

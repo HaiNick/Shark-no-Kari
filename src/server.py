@@ -351,7 +351,8 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
             "quiet": True,
             "no_warnings": True,
             "extractor_args": {
-                "youtubepot-bgutilhttp": {"base_url": [BGUTIL_POT_URL]}
+                "youtube": {"player_client": ["web"]},
+                "youtubepot-bgutilhttp": {"base_url": [BGUTIL_POT_URL]},
             },
         }
         if proxy:

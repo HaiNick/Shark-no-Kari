@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
-## [2.1.0] - 2026-07-06
+## [2.1.5] - 2026-07-06
 
 ### Added
 - `kari-bgutil-pot` Docker Compose sidecar (`brainicism/bgutil-ytdlp-pot-provider`) —
@@ -14,6 +14,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
   `get_youtube_transcript`. Wired in via `extractor_args` on the `youtubepot-bgutilhttp`
   extractor, base URL configurable via `BGUTIL_POT_URL`.
 - `bgutil-ytdlp-pot-provider` Python plugin dependency (talks to the sidecar container).
+
+---
+
+## [2.1.0] - 2026-07-06
 
 ### Changed
 - `get_youtube_transcript` now uses `yt-dlp` instead of `youtube_transcript_api` for

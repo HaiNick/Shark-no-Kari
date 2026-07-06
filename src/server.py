@@ -317,8 +317,8 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
         url: YouTube video URL (watch, youtu.be, or /shorts/ link).
         lang: Preferred language code (default "en").
     """
-    from youtube_transcript_api import YouTubeTranscriptApi
-    from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
+    import yt_dlp
+    import requests as _requests
 
     pattern = r"(?:v=|youtu\.be/|/shorts/)([A-Za-z0-9_-]{11})"
     match = re.search(pattern, url)
@@ -327,33 +327,56 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
 
     video_id = match.group(1)
 
+    def _vtt_to_text(vtt: str) -> str:
+        lines = []
+        for line in vtt.splitlines():
+            line = line.strip()
+            if not line or line == "WEBVTT" or "-->" in line or re.match(r"^\d+$", line):
+                continue
+            line = re.sub(r"<[^>]+>", "", line)
+            lines.append(line)
+        deduped = []
+        for line in lines:
+            if not deduped or deduped[-1] != line:
+                deduped.append(line)
+        return "\n".join(deduped)
+
     def _sync_fetch(proxy=None):
-        from youtube_transcript_api.proxies import GenericProxyConfig
-        proxy_config = GenericProxyConfig(https_url=proxy) if proxy else None
-        ytt = YouTubeTranscriptApi(proxy_config=proxy_config)
-        try:
-            transcript = ytt.fetch(video_id, languages=[lang])
-        except NoTranscriptFound:
-            transcript_list = ytt.list(video_id)
-            transcript = transcript_list.find_transcript(
-                list(transcript_list._manually_created_transcripts.keys())
-                or list(transcript_list._generated_transcripts.keys())
-            ).fetch()
-        lines = [f"[{int(entry.start)}s] {entry.text}" for entry in transcript]
-        return "\n".join(lines)
+        ydl_opts = {
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": [lang],
+            "quiet": True,
+            "no_warnings": True,
+        }
+        if proxy:
+            ydl_opts["proxy"] = proxy
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        subs = info.get("subtitles") or {}
+        auto_subs = info.get("automatic_captions") or {}
+        track = subs.get(lang) or auto_subs.get(lang)
+        if not track:
+            track = next(iter(subs.values()), None) or next(iter(auto_subs.values()), None)
+        if not track:
+            raise ValueError(f"No transcript/captions available for video: {video_id}")
+
+        entry = next((t for t in track if t.get("ext") == "vtt"), track[0])
+        proxies = {"https": proxy, "http": proxy} if proxy else None
+        resp = _requests.get(entry["url"], proxies=proxies, timeout=30)
+        resp.raise_for_status()
+        return _vtt_to_text(resp.text)
 
     logger.info(f"get_youtube_transcript: {video_id} (lang={lang})")
     try:
         result = await asyncio.to_thread(_sync_fetch)
-    except TranscriptsDisabled:
-        return f"Transcripts are disabled for video: {video_id}"
     except Exception as e:
         if PROXY_URL:
             logger.info(f"get_youtube_transcript: direct failed ({e}), retrying via proxy")
             try:
                 result = await asyncio.to_thread(_sync_fetch, PROXY_URL)
-            except TranscriptsDisabled:
-                return f"Transcripts are disabled for video: {video_id}"
             except Exception as e2:
                 return f"Failed to fetch transcript (via proxy): {e2}"
         else:

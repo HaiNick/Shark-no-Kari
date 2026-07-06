@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.0] - 2026-07-06
+
+### Changed
+- `get_youtube_transcript` now uses `yt-dlp` instead of `youtube_transcript_api` for
+  fetching captions. `youtube_transcript_api` was getting blocked by YouTube even through
+  the NordLynx proxy fallback (commercial VPN IP ranges are commonly blocklisted at the
+  application layer); `yt-dlp` is more actively maintained against YouTube's anti-bot
+  measures and handles this more robustly.
+- Transcript output no longer includes per-line [Ns] timestamps — now returns continuous
+  transcript text parsed from the VTT subtitle track.
+
+### Removed
+- `youtube-transcript-api` dependency
+
+---
+
 ## [2.0.0] - 2026-06-29
 
 ### Added

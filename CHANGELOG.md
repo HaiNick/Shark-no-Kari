@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
-## [2.1.0] - 2026-07-06
+## [2.1.5] - 2026-07-06
 
 ### Added
 - `kari-bgutil-pot` Docker Compose sidecar (`brainicism/bgutil-ytdlp-pot-provider`) —

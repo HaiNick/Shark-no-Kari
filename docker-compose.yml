@@ -23,6 +23,17 @@ services:
       kari-cloakbrowser:
         condition: service_healthy
         required: false
+      kari-bgutil-pot:
+        condition: service_started
+        required: false
+
+  kari-bgutil-pot:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: kari-bgutil-pot
+    init: true
+    restart: unless-stopped
+    networks:
+      - kari-internal
 
   nordlynx-proxy:
     image: edgd1er/nordlynx-proxy:latest

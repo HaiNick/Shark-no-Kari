@@ -29,6 +29,7 @@ PROXY_URL = os.getenv("PROXY_URL", "")
 OIDC_ENABLED = os.getenv("OIDC_ENABLED", "").lower() in {"1", "true", "yes"}
 CLOAKBROWSER_ENABLED = "cloakbrowser" in os.getenv("COMPOSE_PROFILES", "")
 CLOAKBROWSER_CDP_URL = os.getenv("CLOAKBROWSER_CDP_URL", "http://kari-cloakbrowser:9222")
+BGUTIL_POT_URL = os.getenv("BGUTIL_POT_URL", "http://kari-bgutil-pot:4416")
 
 # socks5:// resolves DNS locally; socks5h:// delegates DNS to the proxy.
 # VPN proxies (NordVPN, etc.) expect proxy-side resolution, so normalize.
@@ -349,6 +350,9 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
             "subtitleslangs": [lang],
             "quiet": True,
             "no_warnings": True,
+            "extractor_args": {
+                "youtubepot-bgutilhttp": {"base_url": [BGUTIL_POT_URL]}
+            },
         }
         if proxy:
             ydl_opts["proxy"] = proxy

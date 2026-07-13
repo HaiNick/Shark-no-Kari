@@ -97,14 +97,33 @@ _INSTRUCTIONS = (
 )
 
 if OIDC_ENABLED:
+    from pathlib import Path as _Path
+
     from fastmcp.server.auth.oidc_proxy import OIDCProxy
-    from key_value.aio.stores.filetree.store import FileTreeStore
+    from key_value.aio.stores.filetree import (
+        FileTreeStore,
+        FileTreeV1CollectionSanitizationStrategy,
+        FileTreeV1KeySanitizationStrategy,
+    )
     from key_value.aio.wrappers.encryption.fernet import FernetEncryptionWrapper
     from cryptography.fernet import Fernet
 
+    # 2026-07-13: Claude.ai sends its CIMD URL as client_id
+    # ("https://claude.ai/oauth/mcp-oauth-client-metadata").  Without key
+    # sanitization, FileTreeStore maps "/" and ":" directly to filesystem paths
+    # and dies with FileNotFoundError on every /authorize request.
+    _oauth_state_dir = _Path("/app/oauth_state")
     _client_storage = FernetEncryptionWrapper(
-        key_value=FileTreeStore(data_directory="/app/oauth_state"),
+        key_value=FileTreeStore(
+            data_directory=_oauth_state_dir,
+            key_sanitization_strategy=FileTreeV1KeySanitizationStrategy(_oauth_state_dir),
+            collection_sanitization_strategy=FileTreeV1CollectionSanitizationStrategy(_oauth_state_dir),
+        ),
         fernet=Fernet(_STORAGE_ENCRYPTION_KEY),
+    )
+    logger.info(
+        "OAuth state dir: %s — ephemeral; clearing it only forces re-authentication.",
+        _oauth_state_dir,
     )
     _auth = OIDCProxy(
         config_url=_OIDC_CONFIG_URL,

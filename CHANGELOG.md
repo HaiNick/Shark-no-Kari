@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.8] - 2026-07-13
+
+### Fixed
+- 500 on `GET /authorize` when Claude.ai registers via CIMD: the client_id is
+  the metadata document URL (`https://claude.ai/oauth/mcp-oauth-client-metadata`),
+  and `FileTreeStore` was mapping `/` and `:` directly to filesystem path
+  separators, causing `FileNotFoundError`.  Fixed by passing
+  `FileTreeV1KeySanitizationStrategy` and `FileTreeV1CollectionSanitizationStrategy`
+  to `FileTreeStore` so keys are encoded to safe filenames before any I/O.
+- Carried over from v2.1.7: `forward_resource=False` on `OIDCProxy` to suppress
+  the RFC 8707 `resource` parameter that Pocket ID ≥ 2.10 (fosite) rejects.
+
+### Notes
+- The `/app/oauth_state` volume is ephemeral OAuth proxy state; clearing it
+  only forces clients to re-authenticate (no user data is stored there).
+
+---
+
 ## [2.1.7] - 2026-07-13
 
 ### Fixed

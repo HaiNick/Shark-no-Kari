@@ -277,6 +277,16 @@ Restart the stack: `docker compose up -d`
 
 On the first connection from Claude, it will open a browser tab. Log in with your Pocket ID account and click **Allow**. Subsequent connections reuse the cached token silently.
 
+### OAuth State
+
+The `oauth_state` Docker volume holds ephemeral OAuth proxy state (client registrations, short-lived tokens). No user data is stored there. You can safely wipe it at any time — the only effect is that connected MCP clients will need to re-authenticate:
+
+```bash
+docker compose down
+docker volume rm shark-no-kari_oauth_state   # volume name may vary; check with `docker volume ls`
+docker compose up -d
+```
+
 ### Verification
 
 After deploying with OIDC enabled, run [`scripts/verify-oidc.sh`](scripts/verify-oidc.sh):

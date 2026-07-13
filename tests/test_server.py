@@ -11,6 +11,87 @@ from src.server import get_youtube_transcript, fetch_page, extract_elements
 
 
 # --------------------------------------------------------------------------- #
+# OAuth client storage tests
+# --------------------------------------------------------------------------- #
+
+class TestOAuthClientStorage:
+    """Verify that URL-shaped CIMD client_ids survive the storage round-trip.
+
+    Claude.ai registers via CIMD and sends its metadata document URL as the
+    client_id (e.g. "https://claude.ai/oauth/mcp-oauth-client-metadata").
+    Without FileTreeV1KeySanitizationStrategy the raw "/" and ":" in that URL
+    become filesystem path separators and FileTreeStore dies with
+    FileNotFoundError.  These tests confirm the fix holds.
+    """
+
+    CIMD_CLIENT_ID = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+
+    async def test_url_key_put_fails_without_sanitization(self, tmp_path):
+        """FileTreeStore without sanitization raises on a URL-shaped key."""
+        from key_value.aio.stores.filetree import FileTreeStore
+
+        store = FileTreeStore(data_directory=tmp_path)
+        with pytest.raises((FileNotFoundError, OSError)):
+            await store.put(
+                key=self.CIMD_CLIENT_ID,
+                value={"client_id": self.CIMD_CLIENT_ID},
+                collection="mcp-oauth-proxy-clients",
+            )
+
+    async def test_url_key_round_trips_with_sanitization(self, tmp_path):
+        """FileTreeStore + sanitization strategies allow URL-shaped keys."""
+        from cryptography.fernet import Fernet
+        from key_value.aio.stores.filetree import (
+            FileTreeStore,
+            FileTreeV1CollectionSanitizationStrategy,
+            FileTreeV1KeySanitizationStrategy,
+        )
+        from key_value.aio.wrappers.encryption.fernet import FernetEncryptionWrapper
+
+        store = FernetEncryptionWrapper(
+            key_value=FileTreeStore(
+                data_directory=tmp_path,
+                key_sanitization_strategy=FileTreeV1KeySanitizationStrategy(tmp_path),
+                collection_sanitization_strategy=FileTreeV1CollectionSanitizationStrategy(tmp_path),
+            ),
+            fernet=Fernet(Fernet.generate_key()),
+        )
+
+        payload = {"client_id": self.CIMD_CLIENT_ID, "scope": "openid"}
+        await store.put(key=self.CIMD_CLIENT_ID, value=payload, collection="mcp-oauth-proxy-clients")
+        result = await store.get(key=self.CIMD_CLIENT_ID, collection="mcp-oauth-proxy-clients")
+
+        assert result is not None
+        assert result["client_id"] == self.CIMD_CLIENT_ID
+        assert result["scope"] == "openid"
+
+    async def test_distinct_url_keys_do_not_collide(self, tmp_path):
+        """Two different URL keys sanitize to distinct file names."""
+        from key_value.aio.stores.filetree import (
+            FileTreeStore,
+            FileTreeV1CollectionSanitizationStrategy,
+            FileTreeV1KeySanitizationStrategy,
+        )
+
+        store = FileTreeStore(
+            data_directory=tmp_path,
+            key_sanitization_strategy=FileTreeV1KeySanitizationStrategy(tmp_path),
+            collection_sanitization_strategy=FileTreeV1CollectionSanitizationStrategy(tmp_path),
+        )
+
+        key_a = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+        key_b = "https://other.example.com/oauth/mcp-oauth-client-metadata"
+        await store.put(key=key_a, value={"id": "a"}, collection="clients")
+        await store.put(key=key_b, value={"id": "b"}, collection="clients")
+
+        result_a = await store.get(key=key_a, collection="clients")
+        result_b = await store.get(key=key_b, collection="clients")
+
+        assert result_a is not None and result_a["id"] == "a"
+        assert result_b is not None and result_b["id"] == "b"
+
+
+# --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
 
@@ -293,8 +374,14 @@ class TestOIDCStartup:
         mock_file_tree_cls = MagicMock(return_value=MagicMock())
         mock_fernet_wrapper_cls = MagicMock(return_value=MagicMock())
 
+        mock_filetree_pkg = MagicMock(
+            FileTreeStore=mock_file_tree_cls,
+            FileTreeV1KeySanitizationStrategy=MagicMock(return_value=MagicMock()),
+            FileTreeV1CollectionSanitizationStrategy=MagicMock(return_value=MagicMock()),
+        )
         injected_modules = {
             "fastmcp.server.auth.oidc_proxy": MagicMock(OIDCProxy=mock_oidc_cls),
+            "key_value.aio.stores.filetree": mock_filetree_pkg,
             "key_value.aio.stores.filetree.store": MagicMock(FileTreeStore=mock_file_tree_cls),
             "key_value.aio.wrappers.encryption.fernet": MagicMock(
                 FernetEncryptionWrapper=mock_fernet_wrapper_cls

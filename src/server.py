@@ -114,6 +114,7 @@ if OIDC_ENABLED:
         jwt_signing_key=_JWT_SIGNING_KEY,
         required_scopes=["openid"],
         verify_id_token=True,
+        forward_resource=False,  # Pocket ID >= 2.10 (fosite) rejects RFC 8707 resource param
         client_storage=_client_storage,
     )
     mcp = FastMCP(name="Shark-no-Kari", instructions=_INSTRUCTIONS, auth=_auth)

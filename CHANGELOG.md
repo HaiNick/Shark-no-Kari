@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.7] - 2026-07-13
+
+### Fixed
+- `OIDCProxy`: set `forward_resource=False` to suppress the RFC 8707 `resource` parameter
+  that Pocket ID >= 2.10 (fosite) rejects during the token exchange.
+
+---
+
 ## [2.1.6] - 2026-07-06
 
 ### Fixed

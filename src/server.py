@@ -50,8 +50,6 @@ _OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID", "")
 _OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET", "")
 _OIDC_BASE_URL = os.getenv("OIDC_BASE_URL", "")
 _JWT_SIGNING_KEY = os.getenv("JWT_SIGNING_KEY", "")
-_STORAGE_ENCRYPTION_KEY = os.getenv("STORAGE_ENCRYPTION_KEY", "")
-
 if OIDC_ENABLED:
     _missing = [
         name
@@ -60,7 +58,6 @@ if OIDC_ENABLED:
             ("OIDC_CLIENT_ID", _OIDC_CLIENT_ID),
             ("OIDC_BASE_URL", _OIDC_BASE_URL),
             ("JWT_SIGNING_KEY", _JWT_SIGNING_KEY),
-            ("STORAGE_ENCRYPTION_KEY", _STORAGE_ENCRYPTION_KEY),
         ]
         if not val
     ]
@@ -97,34 +94,8 @@ _INSTRUCTIONS = (
 )
 
 if OIDC_ENABLED:
-    from pathlib import Path as _Path
-
     from fastmcp.server.auth.oidc_proxy import OIDCProxy
-    from key_value.aio.stores.filetree import (
-        FileTreeStore,
-        FileTreeV1CollectionSanitizationStrategy,
-        FileTreeV1KeySanitizationStrategy,
-    )
-    from key_value.aio.wrappers.encryption.fernet import FernetEncryptionWrapper
-    from cryptography.fernet import Fernet
 
-    # 2026-07-13: Claude.ai sends its CIMD URL as client_id
-    # ("https://claude.ai/oauth/mcp-oauth-client-metadata").  Without key
-    # sanitization, FileTreeStore maps "/" and ":" directly to filesystem paths
-    # and dies with FileNotFoundError on every /authorize request.
-    _oauth_state_dir = _Path("/app/oauth_state")
-    _client_storage = FernetEncryptionWrapper(
-        key_value=FileTreeStore(
-            data_directory=_oauth_state_dir,
-            key_sanitization_strategy=FileTreeV1KeySanitizationStrategy(_oauth_state_dir),
-            collection_sanitization_strategy=FileTreeV1CollectionSanitizationStrategy(_oauth_state_dir),
-        ),
-        fernet=Fernet(_STORAGE_ENCRYPTION_KEY),
-    )
-    logger.info(
-        "OAuth state dir: %s — ephemeral; clearing it only forces re-authentication.",
-        _oauth_state_dir,
-    )
     _auth = OIDCProxy(
         config_url=_OIDC_CONFIG_URL,
         client_id=_OIDC_CLIENT_ID,
@@ -134,7 +105,6 @@ if OIDC_ENABLED:
         required_scopes=["openid"],
         verify_id_token=True,
         forward_resource=False,  # Pocket ID >= 2.10 (fosite) rejects RFC 8707 resource param
-        client_storage=_client_storage,
     )
     mcp = FastMCP(name="Shark-no-Kari", instructions=_INSTRUCTIONS, auth=_auth)
 else:

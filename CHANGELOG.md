@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.9] - 2026-07-13
+
+### Changed
+- Replace persistent OAuth client storage (FileTreeStore + Fernet) with FastMCP's
+  default in-memory storage (fleet-standard pattern). Fixes consent 403 that appeared
+  alongside the v2.1.8 storage key fix; supersedes it. Trade-off: clients must
+  re-authenticate after a container restart (no user data is stored there anyway).
+- `STORAGE_ENCRYPTION_KEY` is no longer required and has been removed from config
+  validation and `.env.example`.
+
+---
+
 ## [2.1.8] - 2026-07-13
 
 ### Fixed

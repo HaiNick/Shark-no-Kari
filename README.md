@@ -250,14 +250,10 @@ Copy the generated **Client ID** and **Client Secret** for the next step.
 
 ### Enable OIDC in .env
 
-Generate the two key material values:
+Generate the JWT signing key:
 
 ```bash
-# JWT signing key (for fastmcp's own tokens issued to MCP clients):
 openssl rand -hex 32
-
-# Fernet encryption key (for the on-disk DCR registration store):
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
 Then set these variables in `.env`:
@@ -270,7 +266,6 @@ OIDC_CLIENT_ID=<paste from Pocket ID>
 OIDC_CLIENT_SECRET=<paste from Pocket ID>
 OIDC_BASE_URL=https://kari.snowy-burbot.com
 JWT_SIGNING_KEY=<output of openssl command>
-STORAGE_ENCRYPTION_KEY=<output of python command>
 ```
 
 Restart the stack: `docker compose up -d`
@@ -279,13 +274,7 @@ On the first connection from Claude, it will open a browser tab. Log in with you
 
 ### OAuth State
 
-The `oauth_state` Docker volume holds ephemeral OAuth proxy state (client registrations, short-lived tokens). No user data is stored there. You can safely wipe it at any time — the only effect is that connected MCP clients will need to re-authenticate:
-
-```bash
-docker compose down
-docker volume rm shark-no-kari_oauth_state   # volume name may vary; check with `docker volume ls`
-docker compose up -d
-```
+OAuth proxy state (client registrations, short-lived tokens) is held in memory. Container restarts require clients to re-authenticate — no user data is lost.
 
 ### Verification
 
@@ -463,7 +452,6 @@ stealth_fetch_page()
 | `OIDC_CLIENT_SECRET` | _(empty)_ | Client secret from your Pocket ID application |
 | `OIDC_BASE_URL` | _(empty)_ | Public base URL of this server (e.g. `https://kari.snowy-burbot.com`). Used for redirect URIs. |
 | `JWT_SIGNING_KEY` | _(empty)_ | Secret for signing JWTs issued to MCP clients. Generate with `openssl rand -hex 32`. |
-| `STORAGE_ENCRYPTION_KEY` | _(empty)_ | Fernet key for encrypting the on-disk OAuth client store. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 
 ### Caddyfile
 

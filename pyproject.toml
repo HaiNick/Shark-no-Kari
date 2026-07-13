@@ -1,6 +1,6 @@
 [project]
 name = "shark-no-kari"
-version = "2.1.9"
+version = "2.1.10"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

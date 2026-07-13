@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.10] - 2026-07-13
+
+### Fixed
+- Require fastmcp >= 3.4.4; fixes consent 403 (Forbidden Origin) behind reverse
+  proxy for CIMD clients (fastmcp 3.4.3 reconstructed the origin from the
+  proxy-rewritten Host header instead of the browser's Origin header).
+
+---
+
 ## [2.1.9] - 2026-07-13
 
 ### Changed

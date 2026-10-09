@@ -133,6 +133,23 @@ class TestGetYoutubeTranscript:
             result = await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
         assert result.endswith("[... truncated ...]")
 
+    async def test_transcript_ydl_opts_caption_only(self):
+        """Captions must not depend on video formats, and warnings must be logged."""
+        vtt = _make_vtt("Hello world")
+        ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})
+        resp = MagicMock(text=vtt)
+        resp.raise_for_status.return_value = None
+
+        with patch("yt_dlp.YoutubeDL", return_value=ydl) as ydl_cls, \
+             patch("requests.get", return_value=resp):
+            await get_youtube_transcript("https://www.youtube.com/watch?v=abc12345678")
+
+        opts = ydl_cls.call_args.args[0]
+        assert opts["skip_download"] is True
+        assert opts["ignore_no_formats_error"] is True
+        assert "no_warnings" not in opts
+        assert opts["logger"] is not None
+
     async def test_transcript_proxy_fallback(self):
         vtt = _make_vtt("via proxy")
         ydl = _make_ydl(subtitles={"en": [{"ext": "vtt", "url": "https://example.com/en.vtt"}]})

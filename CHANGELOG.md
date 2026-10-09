@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versioning follo
 
 ---
 
+## [2.1.11] - 2026-10-09
+
+### Fixed
+- `get_youtube_transcript` failed for every video with `Requested format is not
+  available`. Three causes, fixed together:
+  - `yt-dlp` ran video format selection even though only captions are needed. YouTube
+    forces SABR streaming for the `web` client, so no downloadable format is left and
+    extraction raised before the subtitle tracks were read. Set
+    `ignore_no_formats_error`.
+  - The `kari-bgutil-pot` sidecar was unreachable. `bgutil-ytdlp-pot-provider` 2.0.0
+    binds to localhost by default (GHSA-qpv9-8xfj-xx9m). The compose service now passes
+    `--host 0.0.0.0` explicitly. No ports are published, so the server stays reachable
+    only on `kari-internal`.
+  - The sidecar floated on `:latest` (2.0.2) while the plugin in the image stayed at
+    1.3.1, and the plugin rejects a mismatched major version. Both are pinned to 2.0.2.
+
+### Changed
+- `yt-dlp` warnings go to the container log instead of being discarded
+  (`no_warnings` removed, `logger` set), so a missing PO token is visible in
+  `docker logs shark-no-kari`.
+- Require `yt-dlp >= 2026.8.19`.
+
+### Upgrade notes
+- Copy the `kari-bgutil-pot` service changes (`image` tag and `command`) into your
+  deployed `docker-compose.yml`, then run `docker compose pull && docker compose up -d`.
+- Bump the sidecar image tag and the `bgutil-ytdlp-pot-provider` pin together.
+
+---
+
 ## [2.1.10] - 2026-07-13
 
 ### Fixed

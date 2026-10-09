@@ -28,8 +28,13 @@ services:
         required: false
 
   kari-bgutil-pot:
-    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    # Keep this tag in sync with bgutil-ytdlp-pot-provider in requirements.txt.
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2
     container_name: kari-bgutil-pot
+    # Since 2.0.0 the server binds to localhost unless told otherwise, which
+    # makes it unreachable from shark-no-kari. No ports are published, so only
+    # containers on kari-internal can reach it.
+    command: ["--host", "0.0.0.0"]
     init: true
     restart: unless-stopped
     networks:

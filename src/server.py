@@ -335,11 +335,17 @@ async def get_youtube_transcript(url: str, lang: str = "en") -> str:
     def _sync_fetch(proxy=None):
         ydl_opts = {
             "skip_download": True,
+            # Only captions are needed. The "web" client is SABR-only, so yt-dlp
+            # finds no downloadable video format and would raise "Requested
+            # format is not available" before the subtitle tracks can be read.
+            "ignore_no_formats_error": True,
             "writesubtitles": True,
             "writeautomaticsub": True,
             "subtitleslangs": [lang],
             "quiet": True,
-            "no_warnings": True,
+            # Route yt-dlp warnings (unreachable PO token provider, discarded
+            # caption tracks) to the container log instead of dropping them.
+            "logger": logger,
             "extractor_args": {
                 "youtube": {"player_client": ["web"]},
                 "youtubepot-bgutilhttp": {"base_url": [BGUTIL_POT_URL]},

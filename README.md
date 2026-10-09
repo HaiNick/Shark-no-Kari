@@ -513,7 +513,7 @@ Images are built automatically by CI and pushed to `ghcr.io/hainick/shark-no-kar
 | `shark-no-kari`  | `ghcr.io/hainick/shark-no-kari:latest` | 8000 (internal) | MCP server |
 | `nordlynx-proxy` | `edgd1er/nordlynx-proxy:latest` | 1080, 8888 (internal) | NordVPN WireGuard tunnel + local SOCKS5/HTTP proxy |
 | `kari-cloakbrowser` | `cloakhq/cloakbrowser` | 9222 (internal, `kari-internal` net) | Optional Chromium CDP stealth engine — only starts when `COMPOSE_PROFILES=cloakbrowser` |
-| `kari-bgutil-pot` | `brainicism/bgutil-ytdlp-pot-provider` | 4416 (internal, `kari-internal` net) | Generates PO tokens so `yt-dlp` passes YouTube's bot check for `get_youtube_transcript` |
+| `kari-bgutil-pot` | `brainicism/bgutil-ytdlp-pot-provider:2.0.2` (keep in sync with the plugin pin in `requirements.txt`) | 4416 (internal, `kari-internal` net) | Generates PO tokens so `yt-dlp` passes YouTube's bot check for `get_youtube_transcript` |
 | `caddy`          | `caddy:2-alpine`   | 80, 443   | Reverse proxy, auto HTTPS, ACL   |
 
 ### Dockerfile
